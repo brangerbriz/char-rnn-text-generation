@@ -1,5 +1,5 @@
 import os
-import time, math, pprint, pickle
+import time, math, pprint, pickle, csv
 from hyperopt import fmin, tpe, hp, Trials, STATUS_OK, STATUS_FAIL
 
 import numpy as np
@@ -211,27 +211,20 @@ def generate_main(args):
 
 def main(): 
     
-    num_trials = 3
-    num_epochs_per_trial = 10
+    num_trials = 5
+    max_epochs_per_trial = 10
     text_path = 'data/10M-tweets.txt'
     experiment_path = 'checkpoints/base-model-10M-hyperopt'
 
-    choices = {
-        'batch_size': [64, 128 , 256],
-        'embedding_size': [16, 32, 64, 128],
-        'num_layers': [1, 2, 3],
-        'rnn_size': [64, 128, 256, 512],
-        'seq_len': [16, 32, 64, 128, 256]
-    }
-    
     search_space = { 
-        'batch_size': hp.choice('batch_size', choices['batch_size']),
+        'batch_size': hp.choice('batch_size', [64, 128 , 256]),
         'drop_rate': hp.uniform('drop_rate', 0.0, 0.3),
-        'embedding_size': hp.choice('embedding_size', choices['embedding_size']),
-        'num_layers': hp.choice('num_layers', choices['num_layers']),
-        'rnn_size': hp.choice('rnn_size', choices['rnn_size']),
-        'seq_len': hp.choice('seq_len', choices['seq_len']),
-        'learning_rate': 0.001
+        'embedding_size': hp.choice('embedding_size', [16, 32, 64, 128]),
+        'num_layers': hp.choice('num_layers', [1, 2, 3]),
+        'rnn_size': hp.choice('rnn_size', [64, 128, 256, 512]),
+        'seq_len': hp.choice('seq_len', [16, 32, 64, 128, 256]),
+        'learning_rate': 0.001,
+        'clip_norm': 5.0
     }
 
     # load text
@@ -242,15 +235,13 @@ def main():
     print('vocabsize: ', utils.VOCAB_SIZE)
 
     trial_num = 1
-    my_trials = []
+    trials = []
     
     def trial(params):
-        nonlocal trial_num, text, num_epochs_per_trial, my_trials
+        nonlocal trial_num, text, max_epochs_per_trial, trials
         params['checkpoint_path'] = '{}/{}/checkpoint.hdf5'.format(experiment_path, trial_num)
         params['text_path'] = text_path
-        params['num_epochs'] = num_epochs_per_trial
-        params['clip_norm'] = 5.0
-        params['trial_num'] = trial_num
+        params['num_epochs'] = max_epochs_per_trial
 
         then = time.time()
         pprint.pprint(params)
@@ -270,104 +261,82 @@ def main():
             error = err
             print(err)
         
-        trial_num += 1
         results = {
             'loss': val_loss,
             'status': status,
-            'training_loss': loss,
+            'train_loss': loss,
             'num_epochs': num_epochs,
             'train_time': time.time() - then,
+            'trial_num': trial_num,
             'error': error
         }
 
-        my_trials.append([params, results])
-
+        trials.append([params, results])
+        trial_num += 1
         return results
 
-    # trials = Trials()
-    # best = fmin(fn=trial,
-    #             space=search_space,
-    #             algo=tpe.suggest,
-    #             max_evals=num_trials,
-    #             trials=trials)
-    
-    # save_trials(os.path.join(experiment_path, 'trials'), trials, best, choices, my_trials)
+    if os.path.isdir(experiment_path):
+        print('experiment_path {} already exists, exiting.'.format(experiment_path))
+        exit(1)
 
-    past_trials = load_trials(os.path.join(experiment_path, 'trials'))
-    print(past_trials['my_trials'])
-    ranked = get_ranked_hyperparameters(past_trials['my_trials'])
+    best = fmin(fn=trial,
+                space=search_space,
+                algo=tpe.suggest,
+                max_evals=num_trials)
+    
+    save_trials(os.path.join(experiment_path, 'trials.pickle'), trials)
+    
+    past_trials = load_trials(os.path.join(experiment_path, 'trials.pickle'))
+    ranked = rank_trials(past_trials)
     pprint.pprint(ranked)
 
-    # assert(best['drop_rate'] == )
+    save_trials_as_csv(os.path.join(experiment_path, 'trials.csv'), ranked)
 
-def save_trials(_dir, trials, best, choices, my_trials):
-
-    os.makedirs(_dir)
-
-    with open(os.path.join(_dir, 'trials.pickle'), 'wb') as f:
-        pickle.dump(trials.trials, f)
-
-    with open(os.path.join(_dir, 'results.pickle'), 'wb') as f:
-        pickle.dump(trials.results, f)
-
-    with open(os.path.join(_dir, 'losses.pickle'), 'wb') as f:
-        pickle.dump(trials.losses(), f)
-    
-    with open(os.path.join(_dir, 'best.pickle'), 'wb') as f:
-        pickle.dump(best, f)
-
-    with open(os.path.join(_dir, 'choices.pickle'), 'wb') as f:
-        pickle.dump(choices, f)
-
-    with open(os.path.join(_dir, 'my_trials.pickle'), 'wb') as f:
-        pickle.dump(my_trials, f)
-
-def load_trials(_dir):
-
-    with open(os.path.join(_dir, 'trials.pickle'), 'rb') as f:
-        trials = pickle.load(f)
-
-    with open(os.path.join(_dir, 'results.pickle'), 'rb') as f:
-        results = pickle.load(f)
-
-    with open(os.path.join(_dir, 'losses.pickle'), 'rb') as f:
-        losses = pickle.load(f)
-
-    with open(os.path.join(_dir, 'best.pickle'), 'rb') as f:
-        best = pickle.load(f)
-
-    with open(os.path.join(_dir, 'choices.pickle'), 'rb') as f:
-        choices = pickle.load(f)
-
-    with open(os.path.join(_dir, 'my_trials.pickle'), 'rb') as f:
-        my_trials = pickle.load(f)
-
-    return {
-        'trials': trials,
-        'results': results,
-        'losses': losses,
-        'best': best,
-        'choices': choices,
-        'my_trials': my_trials
-    }
-
-def get_ranked_hyperparameters(my_trials):
-    sorted_indices = np.argsort([result['loss'] for params, result in my_trials])
+def rank_trials(trials):
+    sorted_indices = np.argsort([result['loss'] for params, result in trials])
     ranked = []
-    trial_num = 1
     for index in sorted_indices:
-        trial, result = my_trials[index]
-        ranked.append((result['loss'], trial))
-        # print(index)
-        # ranked.append([my_trials[index][1]['loss'], trial_num, my_trials[index][0]])
-        trial_num += 1
-    print(ranked)
+        ranked.append(trials[index])
     return ranked
-    # for index in sorted_indices:
-    # [[val_loss, loss, experiment_number, parameters]]
 
-def get_hyperparameter_values(hyperopt_obj, choices):
-    pass
+def save_trials_as_csv(filename, ranked_trials):
+    
+    with open(filename, 'w') as f:
+        fieldnames = ['rank', 'trial_num', 'val_loss', 'train_loss', 
+                      'num_epochs', 'train_time_seconds', 'batch_size', 'drop_rate',
+                      'embedding_size', 'num_layers', 'rnn_size', 'seq_len', 
+                      'learning_rate', 'clip_norm', 'status']
+
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        rank = 1
+        for trial, results in ranked_trials:
+            writer.writerow({
+                'rank': rank,
+                'trial_num': results['trial_num'],
+                'val_loss': results['loss'],
+                'train_loss': results['train_loss'],
+                'num_epochs': results['num_epochs'],
+                'train_time_seconds': int(results['train_time']),
+                'batch_size': trial['batch_size'],
+                'drop_rate': trial['drop_rate'],
+                'embedding_size': trial['embedding_size'],
+                'num_layers': trial['num_layers'],
+                'rnn_size': trial['rnn_size'],
+                'seq_len': trial['seq_len'],
+                'learning_rate': trial['learning_rate'],
+                'clip_norm': trial['clip_norm'],
+                'status': results['status']
+            })
+            rank += 1
+
+def save_trials(filename, trials):
+    with open(filename, 'wb') as f:
+        pickle.dump(trials, f)
+
+def load_trials(filename):
+    with open(filename, 'rb') as f:
+        return pickle.load(f)
 
 if __name__ == "__main__":
-    main()
+        main()
