@@ -1,5 +1,6 @@
 import os
-import time
+import time, math
+# import tensorflowjs as tfjs
 
 import numpy as np
 
@@ -9,8 +10,7 @@ from keras.models import load_model, Sequential
 from keras.optimizers import Adam
 
 from logger import get_logger
-from utils import (batch_generator, encode_text, generate_seed, ID2CHAR, main,
-                   make_dirs, sample_from_probs, VOCAB_SIZE)
+from utils import *
 
 logger = get_logger(__name__)
 
@@ -106,8 +106,8 @@ class LoggerCallback(Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         duration_epoch = time.time() - self.time_epoch
-        logger.info("epoch: %s, duration: %ds, loss: %.6g.",
-                    epoch, duration_epoch, logs["loss"])
+        logger.info("epoch: %s, duration: %ds, loss: %.6g., val_loss: %.6g",
+                    epoch, duration_epoch, logs["loss"], logs["val_loss"])
         # transfer weights from learning model
         self.inference_model.set_weights(self.model.get_weights())
 
@@ -139,6 +139,8 @@ def train_main(args):
     with open(args.text_path) as f:
         text = f.read()
     logger.info("corpus length: %s.", len(text))
+    print('seq_len: ', args.seq_len)
+    print('vocabsize: ', VOCAB_SIZE)
 
     # load or build model
     if args.restore:
@@ -159,20 +161,35 @@ def train_main(args):
     # make and clear checkpoint directory
     log_dir = make_dirs(args.checkpoint_path, empty=True)
     model.save(args.checkpoint_path)
+    # THIS GENERATES INVALID FILES FOR SOME REASON DO NOT USE!
+    # tfjs.converters.save_keras_model(model, os.path.join(log_dir, 'tfjs'))
     logger.info("model saved: %s.", args.checkpoint_path)
     # callbacks
     callbacks = [
         ModelCheckpoint(args.checkpoint_path, verbose=1, save_best_only=False),
-        TensorBoard(log_dir, write_graph=True, embeddings_freq=1,
-                    embeddings_metadata={"embedding_1": os.path.abspath(os.path.join("data", "id2char.tsv"))}),
+        TensorBoard(os.path.join(log_dir, 'logs')),
         LoggerCallback(text, model)
     ]
 
+    val_split = 0.2
+    val_split_index = math.floor(len(text) * val_split)
     # training start
-    num_batches = (len(text) - 1) // (args.batch_size * args.seq_len)
+    num_batches = (len(text) - val_split_index - 1) // (args.batch_size * args.seq_len)
+    num_val_batches = val_split_index // (args.batch_size * args.seq_len)
+    print('{} num batches'.format(num_batches))
+    print('{} num val batches'.format(num_val_batches))
+
+
+    val_generator = batch_generator(encode_text(text[0:val_split_index]), args.batch_size, args.seq_len, one_hot_labels=True)
+    train_generator = batch_generator(encode_text(text[val_split_index:]), args.batch_size, args.seq_len, one_hot_labels=True)
     model.reset_states()
-    model.fit_generator(batch_generator(encode_text(text), args.batch_size, args.seq_len, one_hot_labels=True),
-                        num_batches, args.num_epochs, callbacks=callbacks)
+    x, y = next(train_generator) 
+    model.fit_generator(train_generator,
+                        num_batches,
+                        args.num_epochs,
+                        validation_data=val_generator,
+                        validation_steps=num_val_batches,
+                        callbacks=callbacks)
     return model
 
 
@@ -187,7 +204,6 @@ def generate_main(args):
     inference_model = build_inference_model(model)
     inference_model.set_weights(model.get_weights())
     logger.info("model loaded: %s.", args.checkpoint_path)
-
     # create seed if not specified
     if args.seed is None:
         with open(args.text_path) as f:
