@@ -7,7 +7,7 @@ import numpy as np
 from keras.callbacks import Callback, ModelCheckpoint, TensorBoard, EarlyStopping
 from keras.layers import Dense, Dropout, Embedding, LSTM, TimeDistributed
 from keras.models import load_model, Sequential
-from keras.optimizers import Adam
+from keras.optimizers import *
 
 from logger import get_logger
 import utils
@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 
 def build_model(batch_size, seq_len, vocab_size=utils.VOCAB_SIZE, embedding_size=32,
                 rnn_size=128, num_layers=2, drop_rate=0.0,
-                learning_rate=0.001, clip_norm=5.0):
+                learning_rate=0.001, clip_norm=5.0, optimizer='adam'):
     """
     build character embeddings LSTM text generation model.
     """
@@ -39,10 +39,23 @@ def build_model(batch_size, seq_len, vocab_size=utils.VOCAB_SIZE, embedding_size
     # shape: (batch_size, seq_len, rnn_size)
     model.add(TimeDistributed(Dense(vocab_size, activation="softmax")))
     # output shape: (batch_size, seq_len, vocab_size)
-    optimizer = Adam(learning_rate, clipnorm=clip_norm)
-    model.compile(loss="categorical_crossentropy", optimizer=optimizer)
+
+    opt = get_optimizer(optimizer, clip_norm)
+    model.compile(loss="categorical_crossentropy", optimizer=opt)
     return model
 
+def get_optimizer(name, clip_norm):
+    if name == 'sgd':
+        return SGD(lr=0.01, momentum=0.0, decay=0.0, nesterov=False, clipnorm=clip_norm)
+    elif name == 'rmsprop':
+        return RMSprop(lr=0.001, rho=0.9, epsilon=None, decay=0.0,  clipnorm=clip_norm)
+    elif name == 'adagrad':
+        return Adagrad(lr=0.01, epsilon=None, decay=0.0, clipnorm=clip_norm)
+    elif name == 'adadelta':
+        return Adadelta(lr=1.0, rho=0.95, epsilon=None, decay=0.0, clipnorm=clip_norm)
+    elif name == 'adam':
+        return Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False, clipnorm=clip_norm)
+    else: raise Exception('unsupported optimizer {}'.format(name))
 
 def build_inference_model(model, batch_size=1, seq_len=1):
     """
@@ -130,7 +143,7 @@ class LoggerCallback(Callback):
         generate_text(self.inference_model, seed, 1024, 3)
 
 
-def train_main(args, text):
+def train(args, text):
 
     """
     trains model specfied in args.
@@ -144,8 +157,7 @@ def train_main(args, text):
                         rnn_size=args['rnn_size'],
                         num_layers=args['num_layers'],
                         drop_rate=args['drop_rate'],
-                        learning_rate=args['learning_rate'],
-                        clip_norm=args['clip_norm'])
+                        optimizer=args['optimizer'])
 
     # make and clear checkpoint directory
     log_dir = utils.make_dirs(args['checkpoint_path'], empty=True)
@@ -155,7 +167,7 @@ def train_main(args, text):
     # callbacks
     callbacks = [
         ModelCheckpoint(args['checkpoint_path'], verbose=1, save_best_only=True),
-        EarlyStopping(monitor='val_loss', patience=3),
+        EarlyStopping(monitor='val_loss', patience=3, min_delta=0.02),
         TensorBoard(os.path.join(log_dir, 'logs')),
         LoggerCallback(text, model)
     ]
@@ -172,7 +184,6 @@ def train_main(args, text):
     val_generator = utils.batch_generator(utils.encode_text(text[0:val_split_index]), args['batch_size'], args['seq_len'], one_hot_labels=True)
     train_generator = utils.batch_generator(utils.encode_text(text[val_split_index:]), args['batch_size'], args['seq_len'], one_hot_labels=True)
     model.reset_states()
-    x, y = next(train_generator) 
     history = model.fit_generator(train_generator,
                         num_batches,
                         args['num_epochs'],
@@ -183,6 +194,10 @@ def train_main(args, text):
     loss = history.history['loss'][-1]
     val_loss = history.history['val_loss'][-1]
     num_epochs = len(history.history['loss'])
+
+    del val_generator
+    del train_generator
+
     return model, loss, val_loss, num_epochs
 
 
@@ -211,25 +226,29 @@ def generate_main(args):
 
 def main(): 
     
-    num_trials = 5
-    max_epochs_per_trial = 10
-    text_path = 'data/10M-tweets.txt'
-    experiment_path = 'checkpoints/base-model-10M-hyperopt'
+    num_trials = 30
+    max_epochs_per_trial = 20
+    text_path = 'data/80K-tweets.txt'
+    experiment_path = 'checkpoints/base-model-80K-hyperopt-2'
 
     search_space = { 
         'batch_size': hp.choice('batch_size', [64, 128 , 256]),
-        'drop_rate': hp.uniform('drop_rate', 0.0, 0.3),
+        'drop_rate': hp.uniform('drop_rate', 0.0, 0.1),
         'embedding_size': hp.choice('embedding_size', [16, 32, 64, 128]),
-        'num_layers': hp.choice('num_layers', [1, 2, 3]),
+        'num_layers': hp.choice('num_layers', [1, 2]),
         'rnn_size': hp.choice('rnn_size', [64, 128, 256, 512]),
         'seq_len': hp.choice('seq_len', [16, 32, 64, 128, 256]),
-        'learning_rate': 0.001,
-        'clip_norm': 5.0
+        'optimizer': hp.choice('optimizer', ['sgd', 
+                                             'rmsprop', 
+                                             'adagrad', 
+                                             'adadelta', 
+                                             'adam']),
+        'clip_norm': hp.choice('clip_norm', [None, 5.0])
     }
 
     # load text
     with open(text_path) as f:
-        text = f.read()[0:100000]
+        text = f.read()
 
     logger.info("corpus length: %s.", len(text))
     print('vocabsize: ', utils.VOCAB_SIZE)
@@ -255,7 +274,7 @@ def main():
         num_epochs = 0
 
         try:
-            model, loss, val_loss, num_epochs = train_main(params, text)
+            model, loss, val_loss, num_epochs = train(params, text)
         except Exception as err:
             status = STATUS_FAIL
             error = err
@@ -305,7 +324,7 @@ def save_trials_as_csv(filename, ranked_trials):
         fieldnames = ['rank', 'trial_num', 'val_loss', 'train_loss', 
                       'num_epochs', 'train_time_seconds', 'batch_size', 'drop_rate',
                       'embedding_size', 'num_layers', 'rnn_size', 'seq_len', 
-                      'learning_rate', 'clip_norm', 'status']
+                      'optimizer', 'clip_norm','status']
 
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -324,7 +343,7 @@ def save_trials_as_csv(filename, ranked_trials):
                 'num_layers': trial['num_layers'],
                 'rnn_size': trial['rnn_size'],
                 'seq_len': trial['seq_len'],
-                'learning_rate': trial['learning_rate'],
+                'optimizer': trial['optimizer'],
                 'clip_norm': trial['clip_norm'],
                 'status': results['status']
             })
