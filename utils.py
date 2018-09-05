@@ -209,3 +209,9 @@ def main(framework, train_main, generate_main):
         args.main(args)
     except Exception as e:
         logger.exception(e)
+
+# message = 'This is a test message. 😎🎉Those were some Emoji.'
+# encoded = encode_text(message)
+# print('message: ', message)
+# print('encoded: ', ','.join([str(x) for x in encoded]))
+# print('decoded: ', decode_text(encoded))
