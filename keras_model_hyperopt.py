@@ -1,5 +1,4 @@
-import os
-import time, math, pprint, pickle, csv
+import os, sys, time, math, pprint, pickle, csv
 from hyperopt import fmin, tpe, hp, Trials, STATUS_OK, STATUS_FAIL
 
 import numpy as np
@@ -143,7 +142,7 @@ class LoggerCallback(Callback):
         generate_text(self.inference_model, seed, 1024, 3)
 
 
-def train(args, text):
+def train(args, text, checkpoint_path):
 
     """
     trains model specfied in args.
@@ -160,14 +159,14 @@ def train(args, text):
                         optimizer=args['optimizer'])
 
     # make and clear checkpoint directory
-    log_dir = utils.make_dirs(args['checkpoint_path'], empty=True)
-    model.save(args['checkpoint_path'])
+    log_dir = utils.make_dirs(checkpoint_path, empty=True)
+    model.save(checkpoint_path)
 
-    logger.info("model saved: %s.", args['checkpoint_path'])
+    logger.info("model saved: %s.", checkpoint_path)
     # callbacks
     callbacks = [
-        ModelCheckpoint(args['checkpoint_path'], verbose=1, save_best_only=True),
-        EarlyStopping(monitor='val_loss', patience=3, min_delta=0.02),
+        ModelCheckpoint(checkpoint_path, verbose=1, save_best_only=True),
+        EarlyStopping(monitor='val_loss', patience=3, min_delta=0.01),
         TensorBoard(os.path.join(log_dir, 'logs')),
         LoggerCallback(text, model)
     ]
@@ -226,14 +225,14 @@ def generate_main(args):
 
 def main(): 
     
-    num_trials = 30
+    num_trials = 100
     max_epochs_per_trial = 20
     text_path = 'data/80K-tweets.txt'
     experiment_path = 'checkpoints/base-model-80K-hyperopt-2'
 
     search_space = { 
-        'batch_size': hp.choice('batch_size', [64, 128 , 256]),
-        'drop_rate': hp.uniform('drop_rate', 0.0, 0.1),
+        'batch_size': hp.choice('batch_size', [32, 64, 128, 256]),
+        'drop_rate': hp.uniform('drop_rate', 0.0, 0.2),
         'embedding_size': hp.choice('embedding_size', [16, 32, 64, 128]),
         'num_layers': hp.choice('num_layers', [1, 2]),
         'rnn_size': hp.choice('rnn_size', [64, 128, 256, 512]),
@@ -258,9 +257,8 @@ def main():
     
     def trial(params):
         nonlocal trial_num, text, max_epochs_per_trial, trials
-        params['checkpoint_path'] = '{}/{}/checkpoint.hdf5'.format(experiment_path, trial_num)
-        params['text_path'] = text_path
         params['num_epochs'] = max_epochs_per_trial
+        checkpoint_path = '{}/{}/checkpoint.hdf5'.format(experiment_path, trial_num)
 
         then = time.time()
         pprint.pprint(params)
@@ -274,7 +272,7 @@ def main():
         num_epochs = 0
 
         try:
-            model, loss, val_loss, num_epochs = train(params, text)
+            model, loss, val_loss, num_epochs = train(params, text, checkpoint_path)
         except Exception as err:
             status = STATUS_FAIL
             error = err
@@ -291,6 +289,7 @@ def main():
         }
 
         trials.append([params, results])
+        save_hp_checkpoint(experiment_path, trials)
         trial_num += 1
         return results
 
@@ -303,12 +302,14 @@ def main():
                 algo=tpe.suggest,
                 max_evals=num_trials)
     
-    save_trials(os.path.join(experiment_path, 'trials.pickle'), trials)
+    # past trials can be loaded like this
+    # past_trials = load_trials(os.path.join(experiment_path, 'trials.pickle'))
     
-    past_trials = load_trials(os.path.join(experiment_path, 'trials.pickle'))
-    ranked = rank_trials(past_trials)
-    pprint.pprint(ranked)
+    save_hp_checkpoint(experiment_path, trials)
 
+def save_hp_checkpoint(experiment_path, trials):
+    save_trials(os.path.join(experiment_path, 'trials.pickle'), trials)
+    ranked = rank_trials(trials)
     save_trials_as_csv(os.path.join(experiment_path, 'trials.csv'), ranked)
 
 def rank_trials(trials):
@@ -322,7 +323,7 @@ def save_trials_as_csv(filename, ranked_trials):
     
     with open(filename, 'w') as f:
         fieldnames = ['rank', 'trial_num', 'val_loss', 'train_loss', 
-                      'num_epochs', 'train_time_seconds', 'batch_size', 'drop_rate',
+                      'num_epochs', 'avg_epoch_seconds', 'batch_size', 'drop_rate',
                       'embedding_size', 'num_layers', 'rnn_size', 'seq_len', 
                       'optimizer', 'clip_norm','status']
 
@@ -336,7 +337,7 @@ def save_trials_as_csv(filename, ranked_trials):
                 'val_loss': results['loss'],
                 'train_loss': results['train_loss'],
                 'num_epochs': results['num_epochs'],
-                'train_time_seconds': int(results['train_time']),
+                'avg_epoch_seconds': int(results['train_time'] / max(results['num_epochs'], sys.float_info.epsilon)),
                 'batch_size': trial['batch_size'],
                 'drop_rate': trial['drop_rate'],
                 'embedding_size': trial['embedding_size'],
