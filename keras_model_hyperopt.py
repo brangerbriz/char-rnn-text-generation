@@ -1,14 +1,11 @@
 import os, sys, time, math, pprint, pickle, csv
-from hyperopt import fmin, tpe, hp, Trials, STATUS_OK, STATUS_FAIL
-
+import utils
 import numpy as np
-
 from keras.callbacks import Callback, ModelCheckpoint, TensorBoard, EarlyStopping, LambdaCallback
 from keras.layers import Dense, Dropout, Embedding, LSTM, TimeDistributed
 from keras.models import load_model, Sequential
 from keras.optimizers import *
-
-import utils
+from hyperopt import fmin, tpe, hp, Trials, STATUS_OK, STATUS_FAIL
 
 def build_model(batch_size, seq_len, vocab_size=utils.VOCAB_SIZE, embedding_size=32,
                 rnn_size=128, num_layers=2, drop_rate=0.0,
@@ -188,7 +185,6 @@ def generate_main(args):
 
     return generate_text(inference_model, seed, args.length, args.top_n)
 
-
 def main(): 
     
     num_trials = 1
@@ -350,6 +346,6 @@ def save_trials(filename, trials):
 def load_trials(filename):
     with open(filename, 'rb') as f:
         return pickle.load(f)
-        
+
 if __name__ == "__main__":
         main()
