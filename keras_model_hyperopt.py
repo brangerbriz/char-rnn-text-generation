@@ -49,50 +49,6 @@ def get_optimizer(name, clip_norm):
         return Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False, clipnorm=clip_norm)
     else: raise Exception('unsupported optimizer {}'.format(name))
 
-def build_inference_model(model, batch_size=1, seq_len=1):
-    """
-    build inference model from model config
-    input shape modified to (1, 1)
-    """
-    print("building inference model.")
-    config = model.get_config()
-    # edit batch_size and seq_len
-    config[0]["config"]["batch_input_shape"] = (batch_size, seq_len)
-    inference_model = Sequential.from_config(config)
-    inference_model.trainable = False
-    return inference_model
-
-
-def generate_text(model, seed, length=512, top_n=10):
-    """
-    generates text of specified length from trained model
-    with given seed character sequence.
-    """
-    print("generating {} characters from top {} choices.".format(length, top_n))
-    print('generating with seed: "{}".'.format(seed))
-    generated = seed
-    encoded = utils.encode_text(seed)
-    model.reset_states()
-
-    for idx in encoded[:-1]:
-        x = np.array([[idx]])
-        # input shape: (1, 1)
-        # set internal states
-        model.predict(x)
-
-    next_index = encoded[-1]
-    for i in range(length):
-        x = np.array([[next_index]])
-        # input shape: (1, 1)
-        probs = model.predict(x)
-        # output shape: (1, 1, vocab_size)
-        next_index = utils.sample_from_probs(probs.squeeze(), top_n)
-        # append to sequence
-        generated += utils.ID2CHAR[next_index]
-
-    print("generated text: \n{}\n".format(generated))
-    return generated
-
 def train(args, train_text_path, val_text_path, checkpoint_path):
 
     """
@@ -163,28 +119,6 @@ def generator_wrapper(generator):
         x, y, _ = next(generator)
         yield x, y
 
-def generate_main(args):
-    """
-    generates text from trained model specified in args.
-    main method for generate subcommand.
-    """
-    # load learning model for config and weights
-    model = load_model(args.checkpoint_path)
-    # build inference model and transfer weights
-    inference_model = build_inference_model(model)
-    inference_model.set_weights(model.get_weights())
-    print("model loaded: {}.".format(args.checkpoint_path))
-    # create seed if not specified
-    if args.seed is None:
-        with open(args.text_path) as f:
-            text = f.read()
-        seed = utils.generate_seed(text)
-        print("seed sequence generated from {}".format(args.text_path))
-    else:
-        seed = args.seed
-
-    return generate_text(inference_model, seed, args.length, args.top_n)
-
 def main(): 
     
     num_trials = 1
@@ -253,18 +187,18 @@ def main():
         trial_num += 1
         return results
 
-    if os.path.isdir(experiment_path):
-        print('experiment_path {} already exists, exiting.'.format(experiment_path))
-        exit(1)
-    else: os.makedirs(experiment_path)
-    fmin(fn=trial,
-         space=search_space,
-         algo=tpe.suggest,
-         max_evals=num_trials)
+    # if os.path.isdir(experiment_path):
+    #     print('experiment_path {} already exists, exiting.'.format(experiment_path))
+    #     exit(1)
+    # else: os.makedirs(experiment_path)
+    # fmin(fn=trial,
+    #      space=search_space,
+    #      algo=tpe.suggest,
+    #      max_evals=num_trials)
 
     # you can test model training without running hyperparameter search like this
-    # test_checkpoint = 'checkpoints/test/checkpoint.hdf5'
-    # model, loss, val_loss, num_epochs = test_train(train_text_path, val_text_path, test_checkpoint)
+    test_checkpoint = 'checkpoints/best-of-80k-hyperopt-2-all-data/checkpoint.hdf5'
+    model, loss, val_loss, num_epochs = test_train(train_text_path, val_text_path, test_checkpoint)
 
     # past trials can be loaded like this
     # past_trials = load_trials(os.path.join(experiment_path, 'trials.pickle'))
@@ -274,15 +208,15 @@ def main():
 def test_train(train_text_path, val_text_path, checkpoint_path):
     
     params = { 
-        'batch_size': 64,
+        'batch_size': 32,
         'drop_rate': 0.0,
         'embedding_size': 32,
-        'num_layers': 1,
-        'rnn_size': 64,
-        'seq_len':64,
-        'optimizer': 'rmsprop',
+        'num_layers': 2,
+        'rnn_size': 512,
+        'seq_len':128,
+        'optimizer': 'adam',
         'clip_norm': None,
-        'num_epochs': 25
+        'num_epochs': 5
     }
     
     return train(params, train_text_path, val_text_path, checkpoint_path)
