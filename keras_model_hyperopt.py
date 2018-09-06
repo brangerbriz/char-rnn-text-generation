@@ -8,11 +8,7 @@ from keras.layers import Dense, Dropout, Embedding, LSTM, TimeDistributed
 from keras.models import load_model, Sequential
 from keras.optimizers import *
 
-from logger import get_logger
 import utils
-
-logger = get_logger(__name__)
-
 
 def build_model(batch_size, seq_len, vocab_size=utils.VOCAB_SIZE, embedding_size=32,
                 rnn_size=128, num_layers=2, drop_rate=0.0,
@@ -20,7 +16,7 @@ def build_model(batch_size, seq_len, vocab_size=utils.VOCAB_SIZE, embedding_size
     """
     build character embeddings LSTM text generation model.
     """
-    logger.info("building model: batch_size=%s, seq_len=%s, vocab_size=%s, "
+    print("building model: batch_size=%s, seq_len=%s, vocab_size=%s, "
                 "embedding_size=%s, rnn_size=%s, num_layers=%s, drop_rate=%s, "
                 "learning_rate=%s, clip_norm=%s.",
                 batch_size, seq_len, vocab_size, embedding_size,
@@ -61,7 +57,7 @@ def build_inference_model(model, batch_size=1, seq_len=1):
     build inference model from model config
     input shape modified to (1, 1)
     """
-    logger.info("building inference model.")
+    print("building inference model.")
     config = model.get_config()
     # edit batch_size and seq_len
     config[0]["config"]["batch_input_shape"] = (batch_size, seq_len)
@@ -75,8 +71,8 @@ def generate_text(model, seed, length=512, top_n=10):
     generates text of specified length from trained model
     with given seed character sequence.
     """
-    logger.info("generating %s characters from top %s choices.", length, top_n)
-    logger.info('generating with seed: "%s".', seed)
+    print("generating {} characters from top {} choices.".format(length, top_n))
+    print('generating with seed: "{}".'.format(seed))
     generated = seed
     encoded = utils.encode_text(seed)
     model.reset_states()
@@ -97,50 +93,8 @@ def generate_text(model, seed, length=512, top_n=10):
         # append to sequence
         generated += utils.ID2CHAR[next_index]
 
-    logger.info("generated text: \n%s\n", generated)
+    print("generated text: \n{}\n".format(generated))
     return generated
-
-
-class LoggerCallback(Callback):
-    """
-    callback to log information.
-    generates text at the end of each epoch.
-    """
-    def __init__(self, text, model):
-        super(LoggerCallback, self).__init__()
-        self.text = text
-        # build inference model using config from learning model
-        self.inference_model = build_inference_model(model)
-        self.time_train = self.time_epoch = time.time()
-
-    def on_epoch_begin(self, epoch, logs=None):
-        self.time_epoch = time.time()
-
-    def on_epoch_end(self, epoch, logs=None):
-        duration_epoch = time.time() - self.time_epoch
-        logger.info("epoch: %s, duration: %ds, loss: %.6g., val_loss: %.6g",
-                    epoch, duration_epoch, logs["loss"], logs["val_loss"])
-        # transfer weights from learning model
-        self.inference_model.set_weights(self.model.get_weights())
-
-        # generate text
-        seed = utils.generate_seed(self.text)
-        generate_text(self.inference_model, seed)
-
-    def on_train_begin(self, logs=None):
-        logger.info("start of training.")
-        self.time_train = time.time()
-
-    def on_train_end(self, logs=None):
-        duration_train = time.time() - self.time_train
-        logger.info("end of training, duration: %ds.", duration_train)
-        # transfer weights from learning model
-        self.inference_model.set_weights(self.model.get_weights())
-
-        # generate text
-        seed = utils.generate_seed(self.text)
-        generate_text(self.inference_model, seed, 1024, 3)
-
 
 def train(args, train_text_path, val_text_path, checkpoint_path):
 
@@ -162,26 +116,15 @@ def train(args, train_text_path, val_text_path, checkpoint_path):
     log_dir = utils.make_dirs(checkpoint_path, empty=True)
     model.save(checkpoint_path)
 
-    logger.info("model saved: %s.", checkpoint_path)
+    print("model saved: {}.".format(checkpoint_path))
     # callbacks
     callbacks = [
         ModelCheckpoint(checkpoint_path, verbose=1, save_best_only=True),
         EarlyStopping(monitor='val_loss', patience=3, min_delta=0.01),
         TensorBoard(os.path.join(log_dir, 'logs')),
-        # LoggerCallback(text, model),
-        LambdaCallback(on_epoch_end=lambda epoch, logs: 
-            print('resetting states')
-            model.reset_states()
-        )
+        # you MUST reset the model's RNN states between epochs
+        LambdaCallback(on_epoch_end=lambda epoch, logs: model.reset_states())
     ]
-
-    # val_split = 0.2
-    # val_split_index = math.floor(len(text) * val_split)
-    # # training start
-    # num_batches = (len(text) - val_split_index - 1) // (args['batch_size'] * args['seq_len'])
-    # num_val_batches = val_split_index // (args['batch_size'] * args['seq_len'])
-    # print('{} num batches'.format(num_batches))
-    # print('{} num val batches'.format(num_val_batches))
 
     val_generator = utils.io_batch_generator(train_text_path, batch_size=args['batch_size'], seq_len=args['seq_len'], one_hot_labels=True)
     train_generator = utils.io_batch_generator(val_text_path, batch_size=args['batch_size'], seq_len=args['seq_len'], one_hot_labels=True)
@@ -208,7 +151,6 @@ def train(args, train_text_path, val_text_path, checkpoint_path):
                                   validation_data=val_generator,
                                   validation_steps=val_steps_per_epoch,
                                   callbacks=callbacks)
-                        
     pprint.pprint(history.history)
     loss = history.history['loss'][-1]
     val_loss = history.history['val_loss'][-1]
@@ -234,13 +176,13 @@ def generate_main(args):
     # build inference model and transfer weights
     inference_model = build_inference_model(model)
     inference_model.set_weights(model.get_weights())
-    logger.info("model loaded: %s.", args.checkpoint_path)
+    print("model loaded: {}.".format(args.checkpoint_path))
     # create seed if not specified
     if args.seed is None:
         with open(args.text_path) as f:
             text = f.read()
         seed = utils.generate_seed(text)
-        logger.info("seed sequence generated from %s.", args.text_path)
+        print("seed sequence generated from {}".format(args.text_path))
     else:
         seed = args.seed
 
@@ -270,7 +212,7 @@ def main():
         'clip_norm': hp.choice('clip_norm', [None, 5.0])
     }
 
-    logger.info("corpus length: %s.", os.path.getsize(train_text_path))
+    print("corpus length: {}".format(os.path.getsize(train_text_path)))
     print('vocabsize: ', utils.VOCAB_SIZE)
 
     trial_num = 1
@@ -408,6 +350,6 @@ def save_trials(filename, trials):
 def load_trials(filename):
     with open(filename, 'rb') as f:
         return pickle.load(f)
-
+        
 if __name__ == "__main__":
         main()

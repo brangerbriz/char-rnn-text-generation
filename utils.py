@@ -3,12 +3,7 @@ import os
 import random
 import string
 import sys
-
 import numpy as np
-
-from logger import get_logger
-
-logger = get_logger(__name__)
 
 ###
 # file system
@@ -90,9 +85,9 @@ def batch_generator(sequence, batch_size=64, seq_len=64, one_hot_features=False,
     num_batches = (len(sequence) - 1) // (batch_size * seq_len)
     if num_batches == 0:
         raise ValueError("No batches created. Use smaller batch size or sequence length.")
-    logger.info("number of batches: %s.", num_batches)
+    print("number of batches: {}".format(num_batches))
     rounded_len = num_batches * batch_size * seq_len
-    logger.info("effective text length: %s.", rounded_len)
+    print("effective text length:{}".format(rounded_len))
 
     x = np.reshape(sequence[: rounded_len], [batch_size, num_batches * seq_len])
     if one_hot_features:
@@ -273,18 +268,6 @@ def main(framework, train_main, generate_main):
     generate_parser.set_defaults(main=generate_main)
 
     args = arg_parser.parse_args()
-    get_logger("__main__", log_path=args.log_path, console=True)
-    logger = get_logger(__name__, log_path=args.log_path, console=True)
-    logger.debug("call: %s", " ".join(sys.argv))
-    logger.debug("ArgumentParser: %s", args)
 
-    try:
-        args.main(args)
-    except Exception as e:
-        logger.exception(e)
-
-# message = 'This is a test message. 😎🎉Those were some Emoji.'
-# encoded = encode_text(message)
-# print('message: ', message)
-# print('encoded: ', ','.join([str(x) for x in encoded]))
-# print('decoded: ', decode_text(encoded))
+    args.main(args)
+    
