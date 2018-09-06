@@ -1,9 +1,11 @@
-FILE='data/50M-tweets.txt'
-OUTPUT_FOLDER='data/50M-tweets'
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
+
+FILE="${DIR}/../data/combined-tweets.txt"
+OUTPUT_FOLDER="${DIR}/../data/tweets-split"
 TMP_FILE="${OUTPUT_FOLDER}/tmp.txt"
 
-TRAIN_SPLIT=70
-VAL_SPLIT=20
+TRAIN_SPLIT=80
+VAL_SPLIT=10
 TEST_SPLIT=10
 
 python -c "assert(${TRAIN_SPLIT} + ${VAL_SPLIT} + ${TEST_SPLIT} == 100)"
@@ -16,7 +18,7 @@ fi
 mkdir -p "${OUTPUT_FOLDER}"
 
 echo 'extracting tweets, stripping empty lines, and shuffling data...'
-cut -d$'\t' -f3 "${FILE}" | sed '/^\s*$/d' | shuf > "${TMP_FILE}"
+cut -d$'\t' -f3 "${FILE}" | sed '/^\s*$/d' | shuf | head -n 1000000 > "${TMP_FILE}"
 
 NUM_LINES=`wc -l "${TMP_FILE}" | cut -d" " -f1`
 TRAIN_LINES=`python -c "import math; print(math.floor(${TRAIN_SPLIT} * 0.01 * ${NUM_LINES}))"`

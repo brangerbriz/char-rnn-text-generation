@@ -10,3 +10,5 @@ checkpoints/
 main.log*
 
 venv/
+.vscode/
+data/*

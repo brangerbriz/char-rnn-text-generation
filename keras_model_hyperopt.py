@@ -189,9 +189,9 @@ def main():
     
     num_trials = 1
     max_epochs_per_trial = 2
-    train_text_path = 'data/50M-tweets/train.txt'
-    val_text_path = 'data/50M-tweets/validate.txt'
-    experiment_path = 'checkpoints/base-model-50M-hyperopt'
+    train_text_path = 'data/tweets-split/train.txt'
+    val_text_path = 'data/tweets-split/validate.txt'
+    experiment_path = 'checkpoints/base-model'
 
     search_space = { 
         'batch_size': hp.choice('batch_size', [32, 64, 128, 256]),
