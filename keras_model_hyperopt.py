@@ -79,19 +79,19 @@ def train(args, train_text_path, val_text_path, checkpoint_path):
         LambdaCallback(on_epoch_end=lambda epoch, logs: model.reset_states())
     ]
 
-    val_generator = utils.io_batch_generator(train_text_path, batch_size=args['batch_size'], seq_len=args['seq_len'], one_hot_labels=True)
-    train_generator = utils.io_batch_generator(val_text_path, batch_size=args['batch_size'], seq_len=args['seq_len'], one_hot_labels=True)
+    val_generator = utils.io_batch_generator(val_text_path, batch_size=args['batch_size'], seq_len=args['seq_len'], one_hot_labels=True)
+    train_generator = utils.io_batch_generator(train_text_path, batch_size=args['batch_size'], seq_len=args['seq_len'], one_hot_labels=True)
 
     train_steps_per_epoch = get_num_steps_per_epoch(train_generator)
     val_steps_per_epoch = get_num_steps_per_epoch(val_generator)
     print('train_steps_per_epoch: {}'.format(train_steps_per_epoch))
-    print('val_steps_per_epoch: {}'.format(train_steps_per_epoch))
+    print('val_steps_per_epoch: {}'.format(val_steps_per_epoch))
 
     del train_generator
     del val_generator
 
-    val_generator = utils.io_batch_generator(train_text_path, batch_size=args['batch_size'], seq_len=args['seq_len'], one_hot_labels=True)
-    train_generator = utils.io_batch_generator(val_text_path, batch_size=args['batch_size'], seq_len=args['seq_len'], one_hot_labels=True)
+    val_generator = utils.io_batch_generator(val_text_path, batch_size=args['batch_size'], seq_len=args['seq_len'], one_hot_labels=True)
+    train_generator = utils.io_batch_generator(train_text_path, batch_size=args['batch_size'], seq_len=args['seq_len'], one_hot_labels=True)
 
     val_generator = generator_wrapper(val_generator)
     train_generator = generator_wrapper(train_generator)
