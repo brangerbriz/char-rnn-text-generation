@@ -3,7 +3,7 @@ from hyperopt import fmin, tpe, hp, Trials, STATUS_OK, STATUS_FAIL
 
 import numpy as np
 
-from keras.callbacks import Callback, ModelCheckpoint, TensorBoard, EarlyStopping
+from keras.callbacks import Callback, ModelCheckpoint, TensorBoard, EarlyStopping, LambdaCallback
 from keras.layers import Dense, Dropout, Embedding, LSTM, TimeDistributed
 from keras.models import load_model, Sequential
 from keras.optimizers import *
@@ -142,7 +142,7 @@ class LoggerCallback(Callback):
         generate_text(self.inference_model, seed, 1024, 3)
 
 
-def train(args, text, checkpoint_path):
+def train(args, train_text_path, val_text_path, checkpoint_path):
 
     """
     trains model specfied in args.
@@ -168,27 +168,47 @@ def train(args, text, checkpoint_path):
         ModelCheckpoint(checkpoint_path, verbose=1, save_best_only=True),
         EarlyStopping(monitor='val_loss', patience=3, min_delta=0.01),
         TensorBoard(os.path.join(log_dir, 'logs')),
-        LoggerCallback(text, model)
+        # LoggerCallback(text, model),
+        LambdaCallback(on_epoch_end=lambda epoch, logs: 
+            print('resetting states')
+            model.reset_states()
+        )
     ]
 
+    # val_split = 0.2
+    # val_split_index = math.floor(len(text) * val_split)
+    # # training start
+    # num_batches = (len(text) - val_split_index - 1) // (args['batch_size'] * args['seq_len'])
+    # num_val_batches = val_split_index // (args['batch_size'] * args['seq_len'])
+    # print('{} num batches'.format(num_batches))
+    # print('{} num val batches'.format(num_val_batches))
 
-    val_split = 0.2
-    val_split_index = math.floor(len(text) * val_split)
-    # training start
-    num_batches = (len(text) - val_split_index - 1) // (args['batch_size'] * args['seq_len'])
-    num_val_batches = val_split_index // (args['batch_size'] * args['seq_len'])
-    print('{} num batches'.format(num_batches))
-    print('{} num val batches'.format(num_val_batches))
+    val_generator = utils.io_batch_generator(train_text_path, batch_size=args['batch_size'], seq_len=args['seq_len'], one_hot_labels=True)
+    train_generator = utils.io_batch_generator(val_text_path, batch_size=args['batch_size'], seq_len=args['seq_len'], one_hot_labels=True)
 
-    val_generator = utils.batch_generator(utils.encode_text(text[0:val_split_index]), args['batch_size'], args['seq_len'], one_hot_labels=True)
-    train_generator = utils.batch_generator(utils.encode_text(text[val_split_index:]), args['batch_size'], args['seq_len'], one_hot_labels=True)
+    train_steps_per_epoch = get_num_steps_per_epoch(train_generator)
+    val_steps_per_epoch = get_num_steps_per_epoch(val_generator)
+    print('train_steps_per_epoch: {}'.format(train_steps_per_epoch))
+    print('val_steps_per_epoch: {}'.format(train_steps_per_epoch))
+
+    del train_generator
+    del val_generator
+
+    val_generator = utils.io_batch_generator(train_text_path, batch_size=args['batch_size'], seq_len=args['seq_len'], one_hot_labels=True)
+    train_generator = utils.io_batch_generator(val_text_path, batch_size=args['batch_size'], seq_len=args['seq_len'], one_hot_labels=True)
+
+    val_generator = generator_wrapper(val_generator)
+    train_generator = generator_wrapper(train_generator)
+
     model.reset_states()
+
     history = model.fit_generator(train_generator,
-                        num_batches,
-                        args['num_epochs'],
-                        validation_data=val_generator,
-                        validation_steps=num_val_batches,
-                        callbacks=callbacks)
+                                  epochs=args['num_epochs'],
+                                  steps_per_epoch=train_steps_per_epoch,
+                                  validation_data=val_generator,
+                                  validation_steps=val_steps_per_epoch,
+                                  callbacks=callbacks)
+                        
     pprint.pprint(history.history)
     loss = history.history['loss'][-1]
     val_loss = history.history['val_loss'][-1]
@@ -199,6 +219,10 @@ def train(args, text, checkpoint_path):
 
     return model, loss, val_loss, num_epochs
 
+def generator_wrapper(generator):
+    while True:
+        x, y, _ = next(generator)
+        yield x, y
 
 def generate_main(args):
     """
@@ -225,10 +249,11 @@ def generate_main(args):
 
 def main(): 
     
-    num_trials = 100
-    max_epochs_per_trial = 20
-    text_path = 'data/80K-tweets.txt'
-    experiment_path = 'checkpoints/base-model-80K-hyperopt-2'
+    num_trials = 1
+    max_epochs_per_trial = 2
+    train_text_path = 'data/50M-tweets/train.txt'
+    val_text_path = 'data/50M-tweets/validate.txt'
+    experiment_path = 'checkpoints/base-model-50M-hyperopt'
 
     search_space = { 
         'batch_size': hp.choice('batch_size', [32, 64, 128, 256]),
@@ -245,18 +270,14 @@ def main():
         'clip_norm': hp.choice('clip_norm', [None, 5.0])
     }
 
-    # load text
-    with open(text_path) as f:
-        text = f.read()
-
-    logger.info("corpus length: %s.", len(text))
+    logger.info("corpus length: %s.", os.path.getsize(train_text_path))
     print('vocabsize: ', utils.VOCAB_SIZE)
 
     trial_num = 1
     trials = []
     
     def trial(params):
-        nonlocal trial_num, text, max_epochs_per_trial, trials
+        nonlocal trial_num, train_text_path, val_text_path, max_epochs_per_trial, trials
         params['num_epochs'] = max_epochs_per_trial
         checkpoint_path = '{}/{}/checkpoint.hdf5'.format(experiment_path, trial_num)
 
@@ -272,9 +293,10 @@ def main():
         num_epochs = 0
 
         try:
-            model, loss, val_loss, num_epochs = train(params, text, checkpoint_path)
+            model, loss, val_loss, num_epochs = train(params, train_text_path, val_text_path, checkpoint_path)
         except Exception as err:
             status = STATUS_FAIL
+            pudb.set_trace()
             error = err
             print(err)
         
@@ -296,16 +318,36 @@ def main():
     if os.path.isdir(experiment_path):
         print('experiment_path {} already exists, exiting.'.format(experiment_path))
         exit(1)
+    else: os.makedirs(experiment_path)
+    fmin(fn=trial,
+         space=search_space,
+         algo=tpe.suggest,
+         max_evals=num_trials)
 
-    best = fmin(fn=trial,
-                space=search_space,
-                algo=tpe.suggest,
-                max_evals=num_trials)
-    
+    # you can test model training without running hyperparameter search like this
+    # test_checkpoint = 'checkpoints/test/checkpoint.hdf5'
+    # model, loss, val_loss, num_epochs = test_train(train_text_path, val_text_path, test_checkpoint)
+
     # past trials can be loaded like this
     # past_trials = load_trials(os.path.join(experiment_path, 'trials.pickle'))
     
     save_hp_checkpoint(experiment_path, trials)
+
+def test_train(train_text_path, val_text_path, checkpoint_path):
+    
+    params = { 
+        'batch_size': 64,
+        'drop_rate': 0.0,
+        'embedding_size': 32,
+        'num_layers': 1,
+        'rnn_size': 64,
+        'seq_len':64,
+        'optimizer': 'rmsprop',
+        'clip_norm': None,
+        'num_epochs': 25
+    }
+    
+    return train(params, train_text_path, val_text_path, checkpoint_path)
 
 def save_hp_checkpoint(experiment_path, trials):
     save_trials(os.path.join(experiment_path, 'trials.pickle'), trials)
@@ -318,6 +360,15 @@ def rank_trials(trials):
     for index in sorted_indices:
         ranked.append(trials[index])
     return ranked
+
+def get_num_steps_per_epoch(generator):
+    num_steps = 0
+    while True:
+        x, y, epoch = next(generator)
+        if epoch > 1:
+            return num_steps
+        else:
+            num_steps += 1 # add batch_size samples
 
 def save_trials_as_csv(filename, ranked_trials):
     

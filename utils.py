@@ -97,12 +97,12 @@ def batch_generator(sequence, batch_size=64, seq_len=64, one_hot_features=False,
     x = np.reshape(sequence[: rounded_len], [batch_size, num_batches * seq_len])
     if one_hot_features:
         x = one_hot_encode(x, VOCAB_SIZE)
-    logger.info("x shape: %s.", x.shape)
+    print("x shape: {}".format(x.shape))
 
     y = np.reshape(sequence[1: rounded_len + 1], [batch_size, num_batches * seq_len])
     if one_hot_labels:
         y = one_hot_encode(y, VOCAB_SIZE)
-    logger.info("y shape: %s.", y.shape)
+    print("y shape: {}".format(y.shape))
 
     epoch = 0
     while True:
@@ -113,6 +113,79 @@ def batch_generator(sequence, batch_size=64, seq_len=64, one_hot_features=False,
             yield x_epoch[batch], y_epoch[batch]
         epoch += 1
 
+# NOTE: there is no rolling in this generator, so RNN states must be
+# reset after each Epoch
+def io_batch_generator(text_path, max_bytes_in_ram=1000000, batch_size=64, seq_len=64, one_hot_features=False, one_hot_labels=False):
+    """
+    batch generator for sequence
+    ensures that batches generated are continuous along axis 1
+    so that hidden states can be kept across batches and epochs
+    """
+
+    total_bytes = os.path.getsize(text_path)
+    effective_file_end = total_bytes - total_bytes % max_bytes_in_ram
+    
+    print('total_bytes: {}'.format(total_bytes))
+    print('max_bytes_in_ram: {}'.format(max_bytes_in_ram))
+    print('effective_file_end: {}'.format(effective_file_end))
+
+    with open(text_path, 'r') as file:
+        epoch = 0
+        while True:
+
+            # once we are back at the beginning of the file we have 
+            # entered a new epoch. Epoch is also initialized to zero so
+            # that it will be set to one here at the beginning.
+            if file.tell() == 0: 
+                epoch += 1
+                print('debug: now in epoch {}'.format(epoch))
+
+            # load max_bytes_in_ram into ram
+            io_batch = file.read(max_bytes_in_ram)
+            
+            # if we are within max_bytes_in_ram of the effecitive
+            # end of the file, set the file read playhead back to
+            # the beginning, which will increase the epoch next loop
+            if file.tell() + max_bytes_in_ram > effective_file_end:
+                file.seek(0)
+
+            print('debug: encoding {} bytes of text from io_batch'.format(len(io_batch)))
+            # encode this batch of text
+            encoded = encode_text(io_batch)
+
+            # the number of data batches for this io batch of bytes in RAM
+            num_batches = (len(encoded) - 1) // (batch_size * seq_len)
+            
+            if num_batches == 0:
+                raise ValueError("No batches created. Use smaller batch_size or seq_leng or larger value for max_bytes_in_ram.")
+            
+            print("debug: number of batches in io_batch: {}".format(num_batches))
+            
+            rounded_len = num_batches * batch_size * seq_len
+            print("debug: effective text length in io_batch: {}".format(rounded_len))
+
+            x = np.reshape(encoded[: rounded_len], [batch_size, num_batches * seq_len])
+            if one_hot_features:
+                x = one_hot_encode(x, VOCAB_SIZE)
+            print("debug: x shape: {}".format(x.shape))
+
+            y = np.reshape(encoded[1: rounded_len + 1], [batch_size, num_batches * seq_len])
+            if one_hot_labels:
+                y = one_hot_encode(y, VOCAB_SIZE)
+            print("debug: y shape: {}".format(y.shape))
+
+            x_batches = np.split(x, num_batches, axis=1)
+            y_batches = np.split(y, num_batches, axis=1)
+
+            for batch in range(num_batches):
+                yield x_batches[batch], y_batches[batch], epoch
+            
+            # free the mem
+            del x
+            del y
+            del x_batches
+            del y_batches
+            del encoded
 
 ###
 # text generation
