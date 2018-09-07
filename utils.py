@@ -137,6 +137,7 @@ def io_batch_generator(text_path, max_bytes_in_ram=1000000, batch_size=64, seq_l
 
             # load max_bytes_in_ram into ram
             io_batch = file.read(max_bytes_in_ram)
+            print('debug: new io_batch of {} bytes'.format(max_bytes_in_ram))
             
             # if we are within max_bytes_in_ram of the effecitive
             # end of the file, set the file read playhead back to
@@ -144,7 +145,7 @@ def io_batch_generator(text_path, max_bytes_in_ram=1000000, batch_size=64, seq_l
             if file.tell() + max_bytes_in_ram > effective_file_end:
                 file.seek(0)
 
-            print('debug: encoding {} bytes of text from io_batch'.format(len(io_batch)))
+            # print('debug: encoding {} bytes of text from io_batch'.format(len(io_batch)))
             # encode this batch of text
             encoded = encode_text(io_batch)
 
@@ -154,20 +155,20 @@ def io_batch_generator(text_path, max_bytes_in_ram=1000000, batch_size=64, seq_l
             if num_batches == 0:
                 raise ValueError("No batches created. Use smaller batch_size or seq_leng or larger value for max_bytes_in_ram.")
             
-            print("debug: number of batches in io_batch: {}".format(num_batches))
+            # print("debug: number of batches in io_batch: {}".format(num_batches))
             
             rounded_len = num_batches * batch_size * seq_len
-            print("debug: effective text length in io_batch: {}".format(rounded_len))
+            # print("debug: effective text length in io_batch: {}".format(rounded_len))
 
             x = np.reshape(encoded[: rounded_len], [batch_size, num_batches * seq_len])
             if one_hot_features:
                 x = one_hot_encode(x, VOCAB_SIZE)
-            print("debug: x shape: {}".format(x.shape))
+            # print("debug: x shape: {}".format(x.shape))
 
             y = np.reshape(encoded[1: rounded_len + 1], [batch_size, num_batches * seq_len])
             if one_hot_labels:
                 y = one_hot_encode(y, VOCAB_SIZE)
-            print("debug: y shape: {}".format(y.shape))
+            # print("debug: y shape: {}".format(y.shape))
 
             x_batches = np.split(x, num_batches, axis=1)
             y_batches = np.split(y, num_batches, axis=1)

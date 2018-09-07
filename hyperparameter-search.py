@@ -9,7 +9,7 @@ import train
 import numpy as np
 from hyperopt import fmin, tpe, hp, STATUS_OK, STATUS_FAIL
 
-NUM_TRIALS = 10
+NUM_TRIALS = 100
 MAX_EPOCHS_PER_TRIAL = 1
 TRAIN_TEXT_PATH = 'data/tweets-split-tmp/train.txt'
 VAL_TEXT_PATH = 'data/tweets-split-tmp/validate.txt'
@@ -17,17 +17,17 @@ EXPERIMENT_PATH = 'checkpoints/tmp-delete-me'
 
 SEARCH_SPACE = {
     'batch_size': hp.choice('batch_size', [32, 64, 128, 256]),
-    'drop_rate': hp.uniform('drop_rate', 0.0, 0.2),
-    'embedding_size': hp.choice('embedding_size', [16, 32, 64, 128]),
-    'num_layers': hp.choice('num_layers', [1, 2]),
-    'rnn_size': hp.choice('rnn_size', [64, 128, 256, 512]),
+    'drop_rate': 0.0,
+    'embedding_size': hp.choice('embedding_size', [16, 32, 64, 128, 256]),
+    'num_layers': 1,
+    'rnn_size': hp.choice('rnn_size', [256, 512, 1024]),
     'seq_len': hp.choice('seq_len', [16, 32, 64, 128, 256]),
     'optimizer': hp.choice('optimizer', ['sgd',
                                          'rmsprop',
                                          'adagrad',
                                          'adadelta',
                                          'adam']),
-    'clip_norm': hp.choice('clip_norm', [None, 5.0])
+    'clip_norm': hp.choice('clip_norm', [0.0, 5.0])
 }
 
 
@@ -56,7 +56,6 @@ def main():
                 params, TRAIN_TEXT_PATH, VAL_TEXT_PATH, checkpoint_path)
         except Exception as err:
             status = STATUS_FAIL
-            pudb.set_trace()
             error = err
             print(err)
 
