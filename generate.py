@@ -5,6 +5,26 @@ from argparse import ArgumentParser
 from keras.models import load_model, Sequential
 
 
+def main():
+    dsc = "generate synthetic text from a pre-trained LSTM text generation model"
+    arg_parser = ArgumentParser(description=dsc)
+
+    # generate args
+    arg_parser.add_argument("--checkpoint-path", required=True,
+                            help="path to load model checkpoints (required)")
+    group = arg_parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "--text-path", help="path of text file to generate seed")
+    group.add_argument("--seed", default=None, help="seed character sequence")
+    arg_parser.add_argument("--length", type=int, default=1024,
+                            help="length of character sequence to generate (default: %(default)s)")
+    arg_parser.add_argument("--top-n", type=int, default=3,
+                            help="number of top choices to sample (default: %(default)s)")
+
+    args = arg_parser.parse_args()
+    generate(args)
+
+
 def generate(args):
     """
     generates text from trained model specified in args.
@@ -71,26 +91,6 @@ def build_inference_model(model, batch_size=1, seq_len=1):
     inference_model = Sequential.from_config(config)
     inference_model.trainable = False
     return inference_model
-
-
-def main():
-    dsc = "generate synthetic text from a pre-trained LSTM text generation model"
-    arg_parser = ArgumentParser(description=dsc)
-
-    # generate args
-    arg_parser.add_argument("--checkpoint-path", required=True,
-                            help="path to load model checkpoints (required)")
-    group = arg_parser.add_mutually_exclusive_group(required=True)
-    group.add_argument(
-        "--text-path", help="path of text file to generate seed")
-    group.add_argument("--seed", default=None, help="seed character sequence")
-    arg_parser.add_argument("--length", type=int, default=1024,
-                            help="length of character sequence to generate (default: %(default)s)")
-    arg_parser.add_argument("--top-n", type=int, default=3,
-                            help="number of top choices to sample (default: %(default)s)")
-
-    args = arg_parser.parse_args()
-    generate(args)
 
 
 if __name__ == '__main__':
