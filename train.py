@@ -38,7 +38,7 @@ def main():
     print('vocabsize: ', utils.VOCAB_SIZE)
 
     # you can test model training without running hyperparameter search like this
-    model, loss, val_loss, num_epochs = train(args,
+    model, loss, val_loss, num_epochs = train(vars(args),
                                               train_text_path,
                                               val_text_path)
 
@@ -78,41 +78,43 @@ def parse_args():
     return arg_parser.parse_args()
 
 
-def train(args, train_text_path, val_text_path):
+def train(args, train_text_path, val_text_path, save_checkpoints=True):
     """
     trains model specfied in args.
     main method for train subcommand.
     """
 
-    model = build_model(batch_size=args.batch_size,
-                        seq_len=args.seq_len,
+    model = build_model(batch_size=args['batch_size'],
+                        seq_len=args['seq_len'],
                         vocab_size=utils.VOCAB_SIZE,
-                        embedding_size=args.embedding_size,
-                        rnn_size=args.rnn_size,
-                        num_layers=args.num_layers,
-                        drop_rate=args.drop_rate,
-                        clip_norm=args.clip_norm,
-                        optimizer=args.optimizer)
+                        embedding_size=args['embedding_size'],
+                        rnn_size=args['rnn_size'],
+                        num_layers=args['num_layers'],
+                        drop_rate=args['drop_rate'],
+                        clip_norm=args['clip_norm'],
+                        optimizer=args['optimizer'])
 
-    checkpoint_path = os.path.join(args.checkpoint_dir, 'checkpoint.hdf5')
-    model.save(checkpoint_path)
+    checkpoint_path = os.path.join(args['checkpoint_dir'], 'checkpoint.hdf5')
 
     # callbacks
     callbacks = [
-        ModelCheckpoint(checkpoint_path, verbose=1, save_best_only=True),
         EarlyStopping(monitor='val_loss', patience=3, min_delta=0.01),
-        TensorBoard(os.path.join(args.checkpoint_dir, 'logs')),
+        TensorBoard(os.path.join(args['checkpoint_dir'], 'logs')),
         # you MUST reset the model's RNN states between epochs
         LambdaCallback(on_epoch_end=lambda epoch, logs: model.reset_states())
     ]
 
+    if save_checkpoints:
+        model.save(checkpoint_path)
+        callbacks.append(ModelCheckpoint(checkpoint_path, verbose=1, save_best_only=True))
+
     val_generator = utils.io_batch_generator(val_text_path,
-                                             batch_size=args.batch_size,
-                                             seq_len=args.seq_len,
+                                             batch_size=args['batch_size'],
+                                             seq_len=args['seq_len'],
                                              one_hot_labels=True)
     train_generator = utils.io_batch_generator(train_text_path,
-                                               batch_size=args.batch_size,
-                                               seq_len=args.seq_len,
+                                               batch_size=args['batch_size'],
+                                               seq_len=args['seq_len'],
                                                one_hot_labels=True)
 
     train_steps_per_epoch = get_num_steps_per_epoch(train_generator)
@@ -121,12 +123,12 @@ def train(args, train_text_path, val_text_path):
     print('val_steps_per_epoch: {}'.format(val_steps_per_epoch))
 
     val_generator = utils.io_batch_generator(val_text_path,
-                                             batch_size=args.batch_size,
-                                             seq_len=args.seq_len,
+                                             batch_size=args['batch_size'],
+                                             seq_len=args['seq_len'],
                                              one_hot_labels=True)
     train_generator = utils.io_batch_generator(train_text_path,
-                                               batch_size=args.batch_size,
-                                               seq_len=args.seq_len,
+                                               batch_size=args['batch_size'],
+                                               seq_len=args['seq_len'],
                                                one_hot_labels=True)
 
     val_generator = generator_wrapper(val_generator)
@@ -134,7 +136,7 @@ def train(args, train_text_path, val_text_path):
 
     model.reset_states()
     history = model.fit_generator(train_generator,
-                                  epochs=args.num_epochs,
+                                  epochs=args['num_epochs'],
                                   steps_per_epoch=train_steps_per_epoch,
                                   validation_data=val_generator,
                                   validation_steps=val_steps_per_epoch,
