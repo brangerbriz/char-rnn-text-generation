@@ -13,17 +13,17 @@ NUM_TRIALS = 100
 MAX_EPOCHS_PER_TRIAL = 1
 TRAIN_TEXT_PATH = 'data/tweets-split-tmp/train.txt'
 VAL_TEXT_PATH = 'data/tweets-split-tmp/validate.txt'
-EXPERIMENT_PATH = 'checkpoints/tmp-delete-me'
+EXPERIMENT_PATH = 'checkpoints/100-10K-trials-1-epochs'
+SAVE_CHECKPOINTS = False
 
 SEARCH_SPACE = {
-    'batch_size': hp.choice('batch_size', [32, 64, 128, 256]),
+    'batch_size': hp.choice('batch_size', [16, 32, 64, 128, 256, 512]),
     'drop_rate': 0.0,
     'embedding_size': hp.choice('embedding_size', [16, 32, 64, 128, 256]),
     'num_layers': 1,
-    'rnn_size': hp.choice('rnn_size', [256, 512, 1024]),
+    'rnn_size': 512,
     'seq_len': hp.choice('seq_len', [16, 32, 64, 128, 256]),
-    'optimizer': hp.choice('optimizer', ['sgd',
-                                         'rmsprop',
+    'optimizer': hp.choice('optimizer', ['rmsprop',
                                          'adagrad',
                                          'adadelta',
                                          'adam']),
@@ -37,8 +37,8 @@ def main():
         global TRAIN_TEXT_PATH, VAL_TEXT_PATH, MAX_EPOCHS_PER_TRIAL
         nonlocal trial_num, trials
         params['num_epochs'] = MAX_EPOCHS_PER_TRIAL
-        checkpoint_path = '{}/{}/checkpoint.hdf5'.format(
-            EXPERIMENT_PATH, trial_num)
+        params['checkpoint_dir'] = '{}/{}/'.format(EXPERIMENT_PATH, trial_num)
+        os.makedirs(params['checkpoint_dir'])
 
         then = time.time()
         pprint.pprint(params)
@@ -51,13 +51,15 @@ def main():
         train_time = 0
         num_epochs = 0
 
-        try:
-            model, loss, val_loss, num_epochs = train.train(
-                params, TRAIN_TEXT_PATH, VAL_TEXT_PATH, checkpoint_path)
-        except Exception as err:
-            status = STATUS_FAIL
-            error = err
-            print(err)
+        # try:
+        model, loss, val_loss, num_epochs = train.train(params, 
+                                                        TRAIN_TEXT_PATH, 
+                                                        VAL_TEXT_PATH, 
+                                                        save_checkpoints=SAVE_CHECKPOINTS)
+        # except Exception as err:
+        #     status = STATUS_FAIL
+        #     error = err
+        #     print(err)
 
         results = {
             'loss': val_loss,
