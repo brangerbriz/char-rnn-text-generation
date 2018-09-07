@@ -18,7 +18,7 @@ fi
 mkdir -p "${OUTPUT_FOLDER}"
 
 echo 'extracting tweets, stripping empty lines, and shuffling data...'
-cut -d$'\t' -f3 "${FILE}" | sed '/^\s*$/d' | shuf | head -n 1000000 > "${TMP_FILE}"
+cut -d$'\t' -f3 "${FILE}" | sed '/^\s*$/d' | shuf > "${TMP_FILE}" # head -n 1000000 > "${TMP_FILE}"
 
 NUM_LINES=`wc -l "${TMP_FILE}" | cut -d" " -f1`
 TRAIN_LINES=`python -c "import math; print(math.floor(${TRAIN_SPLIT} * 0.01 * ${NUM_LINES}))"`
