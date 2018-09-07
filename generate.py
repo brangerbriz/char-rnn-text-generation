@@ -4,6 +4,7 @@ import numpy as np
 from argparse import ArgumentParser
 from keras.models import load_model, Sequential
 
+
 def generate(args):
     """
     generates text from trained model specified in args.
@@ -25,6 +26,7 @@ def generate(args):
         seed = args.seed
 
     return generate_text(inference_model, seed, args.length, args.top_n)
+
 
 def generate_text(model, seed, length=512, top_n=10):
     """
@@ -56,6 +58,7 @@ def generate_text(model, seed, length=512, top_n=10):
     print("generated text: \n{}\n".format(generated))
     return generated
 
+
 def build_inference_model(model, batch_size=1, seq_len=1):
     """
     build inference model from model config
@@ -69,6 +72,7 @@ def build_inference_model(model, batch_size=1, seq_len=1):
     inference_model.trainable = False
     return inference_model
 
+
 def main():
     dsc = "generate synthetic text from a pre-trained LSTM text generation model"
     arg_parser = ArgumentParser(description=dsc)
@@ -77,15 +81,17 @@ def main():
     arg_parser.add_argument("--checkpoint-path", required=True,
                             help="path to load model checkpoints (required)")
     group = arg_parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--text-path", help="path of text file to generate seed")
+    group.add_argument(
+        "--text-path", help="path of text file to generate seed")
     group.add_argument("--seed", default=None, help="seed character sequence")
     arg_parser.add_argument("--length", type=int, default=1024,
-                                 help="length of character sequence to generate (default: %(default)s)")
+                            help="length of character sequence to generate (default: %(default)s)")
     arg_parser.add_argument("--top-n", type=int, default=3,
-                                 help="number of top choices to sample (default: %(default)s)")
+                            help="number of top choices to sample (default: %(default)s)")
 
     args = arg_parser.parse_args()
     generate(args)
+
 
 if __name__ == '__main__':
     main()
