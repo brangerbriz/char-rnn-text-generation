@@ -125,7 +125,7 @@ def main():
     max_epochs_per_trial = 2
     train_text_path = 'data/tweets-split/train.txt'
     val_text_path = 'data/tweets-split/validate.txt'
-    experiment_path = 'checkpoints/base-model'
+    experiment_path = 'checkpoints/80k-hyperopt-2-num-41-all-data'
 
     search_space = { 
         'batch_size': hp.choice('batch_size', [32, 64, 128, 256]),
@@ -197,8 +197,7 @@ def main():
     #      max_evals=num_trials)
 
     # you can test model training without running hyperparameter search like this
-    test_checkpoint = 'checkpoints/best-of-80k-hyperopt-2-all-data/checkpoint.hdf5'
-    model, loss, val_loss, num_epochs = test_train(train_text_path, val_text_path, test_checkpoint)
+    model, loss, val_loss, num_epochs = test_train(train_text_path, val_text_path, experiment_path + '/checkpoint.hdf5')
 
     # past trials can be loaded like this
     # past_trials = load_trials(os.path.join(experiment_path, 'trials.pickle'))
@@ -206,15 +205,15 @@ def main():
     save_hp_checkpoint(experiment_path, trials)
 
 def test_train(train_text_path, val_text_path, checkpoint_path):
-    
+
     params = { 
-        'batch_size': 32,
+        'batch_size': 128,
         'drop_rate': 0.0,
-        'embedding_size': 32,
-        'num_layers': 2,
+        'embedding_size': 64,
+        'num_layers': 1,
         'rnn_size': 512,
-        'seq_len':128,
-        'optimizer': 'adam',
+        'seq_len':32,
+        'optimizer': 'rmsprop',
         'clip_norm': None,
         'num_epochs': 5
     }
