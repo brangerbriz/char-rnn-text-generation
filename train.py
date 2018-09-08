@@ -53,9 +53,9 @@ def parse_args():
     # arg_parser.add_argument("--restore", nargs="?", default=False, const=True,
     #                           help="whether to restore from checkpoint-path "
     #                                "or from another path if specified")
-    arg_parser.add_argument("--seq-len", type=int, default=32,
+    arg_parser.add_argument("--seq-len", type=int, default=128,
                             help="sequence length of inputs and outputs (default: %(default)s)")
-    arg_parser.add_argument("--embedding-size", type=int, default=64,
+    arg_parser.add_argument("--embedding-size", type=int, default=256,
                             help="character embedding size (default: %(default)s)")
     arg_parser.add_argument("--rnn-size", type=int, default=512,
                             help="size of rnn cell (default: %(default)s)")
@@ -63,13 +63,13 @@ def parse_args():
                             help="number of rnn layers (default: %(default)s)")
     arg_parser.add_argument("--drop-rate", type=float, default=0.0,
                             help="dropout rate for rnn layers (default: %(default)s)")
-    arg_parser.add_argument("--learning-rate", type=float, default=0.001,
-                            help="learning rate (default: %(default)s)")
-    arg_parser.add_argument("--clip-norm", type=float, default=5.0,
+    # arg_parser.add_argument("--learning-rate", type=float, default=0.001,
+    #                         help="learning rate (default: %(default)s)")
+    arg_parser.add_argument("--clip-norm", type=float, default=0.0,
                             help="max norm to clip gradient (default: %(default)s)")
-    arg_parser.add_argument("--batch-size", type=int, default=128,
+    arg_parser.add_argument("--batch-size", type=int, default=16,
                             help="training batch size (default: %(default)s)")
-    arg_parser.add_argument("--optimizer", type=str, default='rmsprop',
+    arg_parser.add_argument("--optimizer", type=str, default='adam',
                             choices=['sgd', 'rmsprop',
                                      'adagrad', 'adadelta', 'adam'],
                             help="optimizer name (default: %(default)s)")
