@@ -58,7 +58,7 @@ def parse_args():
     arg_parser.add_argument("--checkpoint-dir", required=True,
                             help="path to save or load model checkpoints (required)")
     arg_parser.add_argument("--data-dir", default="data/tweets-split",
-                            help="path to a directory containing a train.txt and validate.txt file (required)")
+                            help="path to a directory containing a train.txt and validate.txt file (default: %(default)s)")
     arg_parser.add_argument("--restore", action='store_true',
                             help="restore training from a checkpoint.hdf5 file in --checkpoint-dir.")
     arg_parser.add_argument("--num-layers", type=int, default=1,
