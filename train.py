@@ -112,9 +112,7 @@ def train(args, train_text_path, val_text_path):
                             embedding_size=args['embedding_size'],
                             rnn_size=args['rnn_size'],
                             num_layers=args['num_layers'],
-                            drop_rate=args['drop_rate'],
-                            clip_norm=args['clip_norm'],
-                            optimizer=args['optimizer'])
+                            drop_rate=args['drop_rate'])
 
     # once we've loaded/built the model, we need to compile it using an 
     # optimizer and a loss. The optimizer can be one of several strings (see get_optimizer())
@@ -216,10 +214,9 @@ def build_model(batch_size, seq_len, vocab_size=utils.VOCAB_SIZE,
     build character embeddings LSTM text generation model.
     """
     print("building model: batch_size={}, seq_len={}, vocab_size={}, "
-          "embedding_size={}, rnn_size={}, num_layers={}, drop_rate={}, "
-          "learning_rate={}, clip_norm={}.".format(
-              batch_size, seq_len, vocab_size, embedding_size,
-              rnn_size, num_layers, drop_rate, clip_norm))
+          "embedding_size={}, rnn_size={}, num_layers={}, drop_rate={}."
+          .format(batch_size, seq_len, vocab_size, embedding_size,
+              rnn_size, num_layers, drop_rate))
 
     model = Sequential()
     # input shape: (batch_size, seq_len)
