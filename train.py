@@ -180,8 +180,7 @@ def build_model(batch_size, seq_len, vocab_size=utils.VOCAB_SIZE,
           "embedding_size={}, rnn_size={}, num_layers={}, drop_rate={}, "
           "learning_rate={}, clip_norm={}.".format(
               batch_size, seq_len, vocab_size, embedding_size,
-              rnn_size, num_layers, drop_rate,
-              learning_rate, clip_norm))
+              rnn_size, num_layers, drop_rate, clip_norm))
 
     model = Sequential()
     # input shape: (batch_size, seq_len)
