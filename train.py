@@ -50,25 +50,25 @@ def parse_args():
                             help="path to save or load model checkpoints (required)")
     arg_parser.add_argument("--data-dir", default="data/tweets-split",
                             help="path to a directory containing a train.txt and validate.txt file (required)")
+    arg_parser.add_argument("--num-layers", type=int, default=1,
+                            help="number of rnn layers (default: %(default)s)")
+    arg_parser.add_argument("--rnn-size", type=int, default=512,
+                            help="size of rnn cell (default: %(default)s)")
     # arg_parser.add_argument("--restore", nargs="?", default=False, const=True,
     #                           help="whether to restore from checkpoint-path "
     #                                "or from another path if specified")
-    arg_parser.add_argument("--seq-len", type=int, default=32,
-                            help="sequence length of inputs and outputs (default: %(default)s)")
     arg_parser.add_argument("--embedding-size", type=int, default=64,
                             help="character embedding size (default: %(default)s)")
-    arg_parser.add_argument("--rnn-size", type=int, default=512,
-                            help="size of rnn cell (default: %(default)s)")
-    arg_parser.add_argument("--num-layers", type=int, default=1,
-                            help="number of rnn layers (default: %(default)s)")
+    arg_parser.add_argument("--batch-size", type=int, default=128,
+                            help="training batch size (default: %(default)s)")
+    arg_parser.add_argument("--seq-len", type=int, default=32,
+                            help="sequence length of inputs and outputs (default: %(default)s)")
     arg_parser.add_argument("--drop-rate", type=float, default=0.05,
                             help="dropout rate for rnn layers (default: %(default)s)")
     # arg_parser.add_argument("--learning-rate", type=float, default=0.001,
     #                         help="learning rate (default: %(default)s)")
     arg_parser.add_argument("--clip-norm", type=float, default=5.0,
                             help="max norm to clip gradient (default: %(default)s)")
-    arg_parser.add_argument("--batch-size", type=int, default=128,
-                            help="training batch size (default: %(default)s)")
     arg_parser.add_argument("--optimizer", type=str, default='rmsprop',
                             choices=['sgd', 'rmsprop',
                                      'adagrad', 'adadelta', 'adam'],
