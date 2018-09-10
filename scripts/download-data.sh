@@ -1,5 +1,5 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
-DOWNLOAD_URL=https://archive.org/download/twitter_cikm_2010/twitter_cikm_2010.zip
+DOWNLOAD_URL=https://github.com/brangerbriz/char-rnn-text-generation/releases/download/data/twitter_cikm_2010.zip
 
 mkdir -p "${DIR}/../data/twitter_cikm_2010/"
 
