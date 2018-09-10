@@ -9,12 +9,11 @@ import train
 import numpy as np
 from hyperopt import fmin, tpe, hp, STATUS_OK, STATUS_FAIL
 
-NUM_TRIALS = 100
-MAX_EPOCHS_PER_TRIAL = 1
+NUM_TRIALS = 20
+MAX_EPOCHS_PER_TRIAL = 10
 TRAIN_TEXT_PATH = 'data/tweets-split-tmp/train.txt'
 VAL_TEXT_PATH = 'data/tweets-split-tmp/validate.txt'
-EXPERIMENT_PATH = 'checkpoints/100-10K-trials-1-epochs'
-SAVE_CHECKPOINTS = False
+EXPERIMENT_PATH = 'checkpoints/20-trials-10-epochs
 
 SEARCH_SPACE = {
     'batch_size': hp.choice('batch_size', [16, 32, 64, 128, 256, 512]),
@@ -51,15 +50,14 @@ def main():
         train_time = 0
         num_epochs = 0
 
-        # try:
-        model, loss, val_loss, num_epochs = train.train(params, 
-                                                        TRAIN_TEXT_PATH, 
-                                                        VAL_TEXT_PATH, 
-                                                        save_checkpoints=SAVE_CHECKPOINTS)
-        # except Exception as err:
-        #     status = STATUS_FAIL
-        #     error = err
-        #     print(err)
+        try:
+            model, loss, val_loss, num_epochs = train.train(params, 
+                                                            TRAIN_TEXT_PATH, 
+                                                            VAL_TEXT_PATH)
+        except Exception as err:
+            status = STATUS_FAIL
+            error = err
+            print(err)
 
         results = {
             'loss': val_loss,
