@@ -27,11 +27,12 @@ def main():
         print('validate.txt does not exist in --data-dir: {}'.format(args.data_dir))
         exit(1)
 
-    if os.path.isdir(args.checkpoint_dir):
-        print('--checkpoint_dir {} already exits.'.format(args.checkpoint_dir))
+    if not args.restore and os.path.isdir(args.checkpoint_dir):
+        print('--checkpoint_dir {} already exits and --restore flag is not present.'.format(args.checkpoint_dir))
         exit(1)
 
-    os.makedirs(args.checkpoint_dir)
+    if not os.path.isdir(args.checkpoint_dir):
+        os.makedirs(args.checkpoint_dir)
 
     print('loading training data from {}'.format(train_text_path))
     print('corpus length: {}'.format(os.path.getsize(train_text_path)))
@@ -44,19 +45,17 @@ def main():
 
 
 def parse_args():
-    arg_parser = ArgumentParser(
-        description="train an LSTM text generation model")
+    arg_parser = ArgumentParser(description="train an LSTM text generation model")
     arg_parser.add_argument("--checkpoint-dir", required=True,
                             help="path to save or load model checkpoints (required)")
     arg_parser.add_argument("--data-dir", default="data/tweets-split",
                             help="path to a directory containing a train.txt and validate.txt file (required)")
+    arg_parser.add_argument("--restore", action='store_true',
+                            help="restore training from a checkpoint.hdf5 file in --checkpoint-dir.")
     arg_parser.add_argument("--num-layers", type=int, default=1,
                             help="number of rnn layers (default: %(default)s)")
     arg_parser.add_argument("--rnn-size", type=int, default=512,
                             help="size of rnn cell (default: %(default)s)")
-    # arg_parser.add_argument("--restore", nargs="?", default=False, const=True,
-    #                           help="whether to restore from checkpoint-path "
-    #                                "or from another path if specified")
     arg_parser.add_argument("--embedding-size", type=int, default=64,
                             help="character embedding size (default: %(default)s)")
     arg_parser.add_argument("--batch-size", type=int, default=128,
@@ -65,8 +64,8 @@ def parse_args():
                             help="sequence length of inputs and outputs (default: %(default)s)")
     arg_parser.add_argument("--drop-rate", type=float, default=0.05,
                             help="dropout rate for rnn layers (default: %(default)s)")
-    # arg_parser.add_argument("--learning-rate", type=float, default=0.001,
-    #                         help="learning rate (default: %(default)s)")
+    arg_parser.add_argument("--learning-rate", type=float, default=None,
+                            help="learning rate (default: the default keras learning rate for the chosen optimizer)")
     arg_parser.add_argument("--clip-norm", type=float, default=5.0,
                             help="max norm to clip gradient (default: %(default)s)")
     arg_parser.add_argument("--optimizer", type=str, default='rmsprop',
@@ -78,36 +77,48 @@ def parse_args():
     return arg_parser.parse_args()
 
 
-def train(args, train_text_path, val_text_path, save_checkpoints=True):
+def train(args, train_text_path, val_text_path):
     """
     trains model specfied in args.
     main method for train subcommand.
     """
 
-    model = build_model(batch_size=args['batch_size'],
-                        seq_len=args['seq_len'],
-                        vocab_size=utils.VOCAB_SIZE,
-                        embedding_size=args['embedding_size'],
-                        rnn_size=args['rnn_size'],
-                        num_layers=args['num_layers'],
-                        drop_rate=args['drop_rate'],
-                        clip_norm=args['clip_norm'],
-                        optimizer=args['optimizer'])
-
     checkpoint_path = os.path.join(args['checkpoint_dir'], 'checkpoint.hdf5')
+
+    model = None
+    if args['restore']:
+        if not os.path.exists(checkpoint_path):
+            err = 'cannot restore model from a checkpoint path that doesn\'t exist: {}'.format(checkpoint_path)
+            raise Exception(err)
+        model = load_model(checkpoint_path)
+        print('model loaded from {}'.format(checkpoint_path))
+    else:
+        model = build_model(batch_size=args['batch_size'],
+                            seq_len=args['seq_len'],
+                            vocab_size=utils.VOCAB_SIZE,
+                            embedding_size=args['embedding_size'],
+                            rnn_size=args['rnn_size'],
+                            num_layers=args['num_layers'],
+                            drop_rate=args['drop_rate'],
+                            clip_norm=args['clip_norm'],
+                            optimizer=args['optimizer'])
+
+    opt = get_optimizer(args['optimizer'], args['clip_norm'], args['learning_rate'])
+    model.compile(loss="categorical_crossentropy", optimizer=opt)
+
 
     # callbacks
     callbacks = [
         EarlyStopping(monitor='val_loss', patience=3, min_delta=0.01),
         TensorBoard(os.path.join(args['checkpoint_dir'], 'logs')),
+        ModelCheckpoint(checkpoint_path, verbose=1, save_best_only=True),
         # you MUST reset the model's RNN states between epochs
-        LearningRateScheduler(lr_schedule, verbose=1),
+        # LearningRateScheduler(lr_schedule, verbose=1),
         LambdaCallback(on_epoch_end=lambda epoch, logs: model.reset_states())
     ]
 
-    if save_checkpoints:
+    if not args['restore']:
         model.save(checkpoint_path)
-        callbacks.append(ModelCheckpoint(checkpoint_path, verbose=1, save_best_only=True))
 
     val_generator = utils.io_batch_generator(val_text_path,
                                              batch_size=args['batch_size'],
@@ -150,17 +161,18 @@ def train(args, train_text_path, val_text_path, save_checkpoints=True):
 
     return model, loss, val_loss, num_epochs
 
-def lr_schedule(epoch):
-    if epoch <= 8:
-        return 0.001
-    elif epoch <= 15:
-        return 0.0005
-    else:
-        return 0.00025
 
-def build_model(batch_size, seq_len, vocab_size=utils.VOCAB_SIZE, embedding_size=32,
-                rnn_size=128, num_layers=2, drop_rate=0.0,
-                learning_rate=0.001, clip_norm=5.0, optimizer='adam'):
+# def lr_schedule(epoch):
+#     if epoch <= 8:
+#         return 0.001
+#     elif epoch <= 15:
+#         return 0.0005
+#     else:
+#         return 0.00025
+
+
+def build_model(batch_size, seq_len, vocab_size=utils.VOCAB_SIZE, 
+                embedding_size=32, rnn_size=128, num_layers=2, drop_rate=0.0):
     """
     build character embeddings LSTM text generation model.
     """
@@ -170,6 +182,7 @@ def build_model(batch_size, seq_len, vocab_size=utils.VOCAB_SIZE, embedding_size
               batch_size, seq_len, vocab_size, embedding_size,
               rnn_size, num_layers, drop_rate,
               learning_rate, clip_norm))
+
     model = Sequential()
     # input shape: (batch_size, seq_len)
     model.add(Embedding(vocab_size, embedding_size,
@@ -182,23 +195,25 @@ def build_model(batch_size, seq_len, vocab_size=utils.VOCAB_SIZE, embedding_size
     # shape: (batch_size, seq_len, rnn_size)
     model.add(TimeDistributed(Dense(vocab_size, activation="softmax")))
     # output shape: (batch_size, seq_len, vocab_size)
-
-    opt = get_optimizer(optimizer, clip_norm)
-    model.compile(loss="categorical_crossentropy", optimizer=opt)
     return model
 
 
-def get_optimizer(name, clip_norm):
+def get_optimizer(name, clip_norm, learning_rate=None):
     if name == 'sgd':
-        return SGD(lr=0.01, momentum=0.0, decay=0.0, nesterov=False, clipnorm=clip_norm)
+        lr = 0.01 if learning_rate == None else learning_rate
+        return SGD(lr=lr, momentum=0.0, decay=0.0, nesterov=False, clipnorm=clip_norm)
     elif name == 'rmsprop':
-        return RMSprop(lr=0.001, rho=0.9, epsilon=None, decay=0.0,  clipnorm=clip_norm)
+        lr = 0.001 if learning_rate == None else learning_rate
+        return RMSprop(lr=lr, rho=0.9, epsilon=None, decay=0.0,  clipnorm=clip_norm)
     elif name == 'adagrad':
-        return Adagrad(lr=0.01, epsilon=None, decay=0.0, clipnorm=clip_norm)
+        lr = 0.01 if learning_rate == None else learning_rate
+        return Adagrad(lr=lr, epsilon=None, decay=0.0, clipnorm=clip_norm)
     elif name == 'adadelta':
-        return Adadelta(lr=1.0, rho=0.95, epsilon=None, decay=0.0, clipnorm=clip_norm)
+        lr = 1.0 if learning_rate == None else learning_rate
+        return Adadelta(lr=lr, rho=0.95, epsilon=None, decay=0.0, clipnorm=clip_norm)
     elif name == 'adam':
-        return Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False, clipnorm=clip_norm)
+        lr = 0.001 if learning_rate == None else learning_rate
+        return Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False, clipnorm=clip_norm)
     else:
         raise Exception('unsupported optimizer {}'.format(name))
 
