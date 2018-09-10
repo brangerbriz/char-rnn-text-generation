@@ -16,6 +16,8 @@ def main():
 
     args = parse_args()
 
+    # we'll use the train.txt and validate.txt files from the  --data-dir folder
+    # specified in the command line arguments (data/twitter-split by default)
     train_text_path = os.path.join(args.data_dir, 'train.txt')
     val_text_path = os.path.join(args.data_dir, 'validate.txt')
 
@@ -38,14 +40,21 @@ def main():
     print('corpus length: {}'.format(os.path.getsize(train_text_path)))
     print('vocabsize: ', utils.VOCAB_SIZE)
 
-    # you can test model training without running hyperparameter search like this
+    # here is an example of the values returned by train(...). We don't use them
+    # here, but you can if you want to modify something in the future:
+    #     - model: the trained model
+    #     - loss: the final training loss value
+    #     - val_loss: the final validation loss value
+    #     - num_epochs: the number of epochs the model was trained for
     model, loss, val_loss, num_epochs = train(vars(args),
                                               train_text_path,
                                               val_text_path)
 
 
 def parse_args():
-    arg_parser = ArgumentParser(description="train an LSTM text generation model")
+
+    arg_parser = ArgumentParser(
+        description="train an LSTM text generation model")
     arg_parser.add_argument("--checkpoint-dir", required=True,
                             help="path to save or load model checkpoints (required)")
     arg_parser.add_argument("--data-dir", default="data/tweets-split",
@@ -79,19 +88,23 @@ def parse_args():
 
 def train(args, train_text_path, val_text_path):
     """
-    trains model specfied in args.
-    main method for train subcommand.
+    trains model using hyperparameters specified in args.
     """
 
+    #
     checkpoint_path = os.path.join(args['checkpoint_dir'], 'checkpoint.hdf5')
 
     model = None
+    # restore the model from checkpoint.hdf5 file in --checkpoint-dir if --restore
+    # was specified in args
     if args['restore']:
         if not os.path.exists(checkpoint_path):
-            err = 'cannot restore model from a checkpoint path that doesn\'t exist: {}'.format(checkpoint_path)
+            err = 'cannot restore model from a checkpoint path that doesn\'t exist: {}'.format(
+                checkpoint_path)
             raise Exception(err)
         model = load_model(checkpoint_path)
         print('model loaded from {}'.format(checkpoint_path))
+    # otherwise, we will create a new model from scratch...
     else:
         model = build_model(batch_size=args['batch_size'],
                             seq_len=args['seq_len'],
@@ -103,11 +116,20 @@ def train(args, train_text_path, val_text_path):
                             clip_norm=args['clip_norm'],
                             optimizer=args['optimizer'])
 
-    opt = get_optimizer(args['optimizer'], args['clip_norm'], args['learning_rate'])
+    # once we've loaded/built the model, we need to compile it using an 
+    # optimizer and a loss. The optimizer can be one of several strings (see get_optimizer())
+    # but the loss must be categorical_crossentropy, because our task is 
+    # a multi-class classification problem.
+    opt = get_optimizer(args['optimizer'],
+                        args['clip_norm'], args['learning_rate'])
     model.compile(loss="categorical_crossentropy", optimizer=opt)
 
-
-    # callbacks
+    # Callbacks are hooked functions that are keras will call automagically
+    # during model training. For more info, see https://keras.io/callbacks/
+    #     - EarlyStopping: Will stop model training once val_loss plateuas
+    #     - TensorBoard: logs training metrics so that they may be viewed by tensorboard
+    #     - ModelCheckpoint: save model checkpoints after each epoch. Only save a checkpoint if val_loss has improved.
+    #     - LabmdaCallback: Your own custom hooked function. Here we reset the model's RNN states between Epochs
     callbacks = [
         EarlyStopping(monitor='val_loss', patience=3, min_delta=0.01),
         TensorBoard(os.path.join(args['checkpoint_dir'], 'logs')),
@@ -120,6 +142,10 @@ def train(args, train_text_path, val_text_path):
     if not args['restore']:
         model.save(checkpoint_path)
 
+    # because we may not be able to fit all of our training data into RAM at once
+    # we will use a python generator that lazy-loads (and releases) data from disk
+    # into RAM as we need it. We will use one generator for validation data
+    # and another for training data.
     val_generator = utils.io_batch_generator(val_text_path,
                                              batch_size=args['batch_size'],
                                              seq_len=args['seq_len'],
@@ -129,11 +155,18 @@ def train(args, train_text_path, val_text_path):
                                                seq_len=args['seq_len'],
                                                one_hot_labels=True)
 
+    # the way the generator is written, we won't know how many samples are in
+    # the entire dataset without processing it all once. We need to know this
+    # number so that we can know the number of batch steps per epoch. This isn't elegant,
+    # but it is a tradeoff that is worth making to have no limit to the amount of
+    # training data we can process using our generator.
     train_steps_per_epoch = get_num_steps_per_epoch(train_generator)
     val_steps_per_epoch = get_num_steps_per_epoch(val_generator)
     print('train_steps_per_epoch: {}'.format(train_steps_per_epoch))
     print('val_steps_per_epoch: {}'.format(val_steps_per_epoch))
 
+    # now that we've computed train_steps_per_epoch and val_steps_per_epoch
+    # we will re-create the generators so that they begin at epoch 0 instead of 1
     val_generator = utils.io_batch_generator(val_text_path,
                                              batch_size=args['batch_size'],
                                              seq_len=args['seq_len'],
@@ -143,10 +176,16 @@ def train(args, train_text_path, val_text_path):
                                                seq_len=args['seq_len'],
                                                one_hot_labels=True)
 
+    # our io_batch_generator returns (x, y, epoch) but model.fit_generator()
+    # expects only (x, y) so we create generator_wrapper() which simply disposes
+    # of the extra "epoch" tuple element.
     val_generator = generator_wrapper(val_generator)
     train_generator = generator_wrapper(train_generator)
 
     model.reset_states()
+
+    # train the model using train_generator for training data and val_generator
+    # for validation data.
     history = model.fit_generator(train_generator,
                                   epochs=args['num_epochs'],
                                   steps_per_epoch=train_steps_per_epoch,
@@ -171,7 +210,7 @@ def train(args, train_text_path, val_text_path):
 #         return 0.00025
 
 
-def build_model(batch_size, seq_len, vocab_size=utils.VOCAB_SIZE, 
+def build_model(batch_size, seq_len, vocab_size=utils.VOCAB_SIZE,
                 embedding_size=32, rnn_size=128, num_layers=2, drop_rate=0.0):
     """
     build character embeddings LSTM text generation model.
@@ -184,6 +223,7 @@ def build_model(batch_size, seq_len, vocab_size=utils.VOCAB_SIZE,
 
     model = Sequential()
     # input shape: (batch_size, seq_len)
+    # add an embedding layer to map input indexes to fixed-width learned vectors
     model.add(Embedding(vocab_size, embedding_size,
                         batch_input_shape=(batch_size, seq_len)))
     model.add(Dropout(drop_rate))
