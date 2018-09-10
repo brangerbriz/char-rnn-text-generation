@@ -6,7 +6,7 @@ import pprint
 import utils
 import numpy as np
 from argparse import ArgumentParser
-from keras.callbacks import Callback, ModelCheckpoint, TensorBoard, EarlyStopping, LambdaCallback
+from keras.callbacks import Callback, ModelCheckpoint, TensorBoard, EarlyStopping, LambdaCallback, LearningRateScheduler
 from keras.layers import Dense, Dropout, Embedding, LSTM, TimeDistributed
 from keras.models import load_model, Sequential
 from keras.optimizers import *
@@ -53,27 +53,27 @@ def parse_args():
     # arg_parser.add_argument("--restore", nargs="?", default=False, const=True,
     #                           help="whether to restore from checkpoint-path "
     #                                "or from another path if specified")
-    arg_parser.add_argument("--seq-len", type=int, default=128,
+    arg_parser.add_argument("--seq-len", type=int, default=32,
                             help="sequence length of inputs and outputs (default: %(default)s)")
-    arg_parser.add_argument("--embedding-size", type=int, default=256,
+    arg_parser.add_argument("--embedding-size", type=int, default=64,
                             help="character embedding size (default: %(default)s)")
     arg_parser.add_argument("--rnn-size", type=int, default=512,
                             help="size of rnn cell (default: %(default)s)")
     arg_parser.add_argument("--num-layers", type=int, default=1,
                             help="number of rnn layers (default: %(default)s)")
-    arg_parser.add_argument("--drop-rate", type=float, default=0.0,
+    arg_parser.add_argument("--drop-rate", type=float, default=0.05,
                             help="dropout rate for rnn layers (default: %(default)s)")
     # arg_parser.add_argument("--learning-rate", type=float, default=0.001,
     #                         help="learning rate (default: %(default)s)")
-    arg_parser.add_argument("--clip-norm", type=float, default=0.0,
+    arg_parser.add_argument("--clip-norm", type=float, default=5.0,
                             help="max norm to clip gradient (default: %(default)s)")
-    arg_parser.add_argument("--batch-size", type=int, default=16,
+    arg_parser.add_argument("--batch-size", type=int, default=128,
                             help="training batch size (default: %(default)s)")
-    arg_parser.add_argument("--optimizer", type=str, default='adam',
+    arg_parser.add_argument("--optimizer", type=str, default='rmsprop',
                             choices=['sgd', 'rmsprop',
                                      'adagrad', 'adadelta', 'adam'],
                             help="optimizer name (default: %(default)s)")
-    arg_parser.add_argument("--num-epochs", type=int, default=5,
+    arg_parser.add_argument("--num-epochs", type=int, default=10,
                             help="number of epochs for training (default: %(default)s)")
     return arg_parser.parse_args()
 
@@ -101,6 +101,7 @@ def train(args, train_text_path, val_text_path, save_checkpoints=True):
         EarlyStopping(monitor='val_loss', patience=3, min_delta=0.01),
         TensorBoard(os.path.join(args['checkpoint_dir'], 'logs')),
         # you MUST reset the model's RNN states between epochs
+        LearningRateScheduler(lr_schedule, verbose=1),
         LambdaCallback(on_epoch_end=lambda epoch, logs: model.reset_states())
     ]
 
@@ -149,6 +150,13 @@ def train(args, train_text_path, val_text_path, save_checkpoints=True):
 
     return model, loss, val_loss, num_epochs
 
+def lr_schedule(epoch):
+    if epoch <= 8:
+        return 0.001
+    elif epoch <= 15:
+        return 0.0005
+    else:
+        return 0.00025
 
 def build_model(batch_size, seq_len, vocab_size=utils.VOCAB_SIZE, embedding_size=32,
                 rnn_size=128, num_layers=2, drop_rate=0.0,
