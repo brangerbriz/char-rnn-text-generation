@@ -3,9 +3,10 @@ DOWNLOAD_URL=https://archive.org/download/twitter_cikm_2010/twitter_cikm_2010.zi
 
 mkdir -p "${DIR}/../data/twitter_cikm_2010/"
 
-echo "downloading ${DOWNLOAD_URL}"
-wget -O "${DIR}/../data/twitter_cikm_2010/twitter_cikm_2010.zip" "${DOWNLOAD_URL}"
-unzip "${DIR}/../data/twitter_cikm_2010/twitter_cikm_2010.zip"
+# echo "downloading ${DOWNLOAD_URL}"
+# wget -O "${DIR}/../data/twitter_cikm_2010/twitter_cikm_2010.zip" "${DOWNLOAD_URL}"
+unzip -d "${DIR}/../data/twitter_cikm_2010/" "${DIR}/../data/twitter_cikm_2010/twitter_cikm_2010.zip"
+rm "${DIR}/../data/twitter_cikm_2010/twitter_cikm_2010.zip"
 
 echo "combining twitter_cikm_2010 test and training sets..."
 cat "${DIR}/../data/twitter_cikm_2010/test_set_tweets.txt" \

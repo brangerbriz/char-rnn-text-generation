@@ -21,9 +21,9 @@ echo 'extracting tweets, stripping empty lines, and shuffling data...'
 cut -d$'\t' -f3 "${FILE}" | sed '/^\s*$/d' | shuf > "${TMP_FILE}" # head -n 1000000 > "${TMP_FILE}"
 
 NUM_LINES=`wc -l "${TMP_FILE}" | cut -d" " -f1`
-TRAIN_LINES=`python -c "import math; print(math.floor(${TRAIN_SPLIT} * 0.01 * ${NUM_LINES}))"`
-VAL_LINES=`python -c "import math; print(math.floor(${VAL_SPLIT} * 0.01 * ${NUM_LINES}))"`
-TEST_LINES=`python -c "import math; print(math.floor(${TEST_SPLIT} * 0.01 * ${NUM_LINES}))"`
+TRAIN_LINES=`python -c "print(int(${TRAIN_SPLIT} * 0.01 * ${NUM_LINES}))"`
+VAL_LINES=`python -c "print(int(${VAL_SPLIT} * 0.01 * ${NUM_LINES}))"`
+TEST_LINES=`python -c "print(int(${TEST_SPLIT} * 0.01 * ${NUM_LINES}))"`
 
 head -n "${TRAIN_LINES}" "${TMP_FILE}" > "${OUTPUT_FOLDER}/train.txt"
 tail --line +"`expr ${TRAIN_LINES} + 1`" "${TMP_FILE}" | head -n "${VAL_LINES}" > "${OUTPUT_FOLDER}/validate.txt"
