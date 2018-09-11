@@ -129,7 +129,7 @@ def train(args, train_text_path, val_text_path):
     #     - ModelCheckpoint: save model checkpoints after each epoch. Only save a checkpoint if val_loss has improved.
     #     - LabmdaCallback: Your own custom hooked function. Here we reset the model's RNN states between Epochs
     callbacks = [
-        EarlyStopping(monitor='val_loss', patience=3, min_delta=0.01),
+        # EarlyStopping(monitor='val_loss', patience=3, min_delta=0.01),
         TensorBoard(os.path.join(args['checkpoint_dir'], 'logs')),
         ModelCheckpoint(checkpoint_path, verbose=1, save_best_only=True),
         # you MUST reset the model's RNN states between epochs
