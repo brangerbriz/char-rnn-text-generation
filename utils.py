@@ -153,7 +153,7 @@ def io_batch_generator(text_path, max_bytes_in_ram=1000000, batch_size=64, seq_l
             num_batches = (len(encoded) - 1) // (batch_size * seq_len)
             
             if num_batches == 0:
-                raise ValueError("No batches created. Use smaller batch_size or seq_leng or larger value for max_bytes_in_ram.")
+                raise ValueError("No batches created. Use smaller batch_size or seq_len or larger value for max_bytes_in_ram.")
             
             # print("debug: number of batches in io_batch: {}".format(num_batches))
             

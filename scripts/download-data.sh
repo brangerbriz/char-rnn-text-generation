@@ -3,8 +3,8 @@ DOWNLOAD_URL=https://github.com/brangerbriz/char-rnn-text-generation/releases/do
 
 mkdir -p "${DIR}/../data/twitter_cikm_2010/"
 
-# echo "downloading ${DOWNLOAD_URL}"
-# wget -O "${DIR}/../data/twitter_cikm_2010/twitter_cikm_2010.zip" "${DOWNLOAD_URL}"
+echo "downloading ${DOWNLOAD_URL}"
+wget -O "${DIR}/../data/twitter_cikm_2010/twitter_cikm_2010.zip" "${DOWNLOAD_URL}"
 unzip -d "${DIR}/../data/twitter_cikm_2010/" "${DIR}/../data/twitter_cikm_2010/twitter_cikm_2010.zip"
 rm "${DIR}/../data/twitter_cikm_2010/twitter_cikm_2010.zip"
 
