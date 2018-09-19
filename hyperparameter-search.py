@@ -7,20 +7,26 @@ import csv
 import utils
 import train
 import numpy as np
-from hyperopt import fmin, tpe, hp, STATUS_OK, STATUS_FAIL
+from hyperopt import fmin, tpe, rand, hp, STATUS_OK, STATUS_FAIL
 
-NUM_TRIALS = 100
-MAX_EPOCHS_PER_TRIAL = 1
+# the number of individual models to train using different hyperparameters
+NUM_TRIALS = 20
+# the maximum number of epochs per trial
+MAX_EPOCHS_PER_TRIAL = 10
 TRAIN_TEXT_PATH = 'data/tweets-split-tmp/train.txt'
 VAL_TEXT_PATH = 'data/tweets-split-tmp/validate.txt'
-EXPERIMENT_PATH = 'checkpoints/100-10K-trials-1-epochs'
-SAVE_CHECKPOINTS = False
+# trials will be saved in this directory in separate folders specified by their
+# trial number (e.g. 1/, 2/, 3/, 4/, etc.)
+EXPERIMENT_PATH = 'checkpoints/20-trials-10-epochs'
 
+# each trial will sample values from this search space to train a new model.
+# see hyperopt's documentation if you would like to add different types of 
+# sampling configurations.
 SEARCH_SPACE = {
     'batch_size': hp.choice('batch_size', [16, 32, 64, 128, 256, 512]),
     'drop_rate': 0.0,
     'embedding_size': hp.choice('embedding_size', [16, 32, 64, 128, 256]),
-    'num_layers': 1,
+    'num_layers': 1, # you can replace these constants with hp.choice() or hp.uniform(), etc.
     'rnn_size': 512,
     'seq_len': hp.choice('seq_len', [16, 32, 64, 128, 256]),
     'optimizer': hp.choice('optimizer', ['rmsprop',
@@ -30,6 +36,10 @@ SEARCH_SPACE = {
     'clip_norm': hp.choice('clip_norm', [0.0, 5.0])
 }
 
+# Use "Tree of Parzen Estimators" as the search algorithm by default. 
+# You can switch to "Random Search" instead with:
+#     SEARCH_ALGORITHM=rand.suggest
+SEARCH_ALGORITHM=tpe.suggest
 
 def main():
 
@@ -51,15 +61,14 @@ def main():
         train_time = 0
         num_epochs = 0
 
-        # try:
-        model, loss, val_loss, num_epochs = train.train(params, 
-                                                        TRAIN_TEXT_PATH, 
-                                                        VAL_TEXT_PATH, 
-                                                        save_checkpoints=SAVE_CHECKPOINTS)
-        # except Exception as err:
-        #     status = STATUS_FAIL
-        #     error = err
-        #     print(err)
+        try:
+            model, loss, val_loss, num_epochs = train.train(params, 
+                                                            TRAIN_TEXT_PATH, 
+                                                            VAL_TEXT_PATH)
+        except Exception as err:
+            status = STATUS_FAIL
+            error = err
+            print(err)
 
         results = {
             'loss': val_loss,
@@ -91,7 +100,7 @@ def main():
     # run the hyperparameter search
     fmin(fn=trial,
          space=SEARCH_SPACE,
-         algo=tpe.suggest,
+         algo=SEARCH_ALGORITHM,
          max_evals=NUM_TRIALS)
 
     # past trials can be loaded like this
