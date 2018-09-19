@@ -208,15 +208,16 @@ def train(args, train_text_path, val_text_path):
 #         return 0.00025
 
 
-def build_model(batch_size, seq_len, vocab_size=utils.VOCAB_SIZE,
-                embedding_size=32, rnn_size=128, num_layers=2, drop_rate=0.0):
+def build_model(batch_size, 
+                seq_len, 
+                vocab_size=utils.VOCAB_SIZE,
+                embedding_size=32, 
+                rnn_size=128, 
+                num_layers=2, 
+                drop_rate=0.0):
     """
     build character embeddings LSTM text generation model.
     """
-    print("building model: batch_size={}, seq_len={}, vocab_size={}, "
-          "embedding_size={}, rnn_size={}, num_layers={}, drop_rate={}."
-          .format(batch_size, seq_len, vocab_size, embedding_size,
-              rnn_size, num_layers, drop_rate))
 
     model = Sequential()
     # input shape: (batch_size, seq_len)
