@@ -2,11 +2,10 @@ import os
 import sys
 import time
 import math
-import pprint
 import utils
 import numpy as np
 from argparse import ArgumentParser
-from keras.callbacks import Callback, ModelCheckpoint, TensorBoard, EarlyStopping, LambdaCallback, LearningRateScheduler
+from keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping, LambdaCallback, LearningRateScheduler
 from keras.layers import Dense, Dropout, Embedding, LSTM, TimeDistributed
 from keras.models import load_model, Sequential
 from keras.optimizers import *
@@ -191,7 +190,6 @@ def train(args, train_text_path, val_text_path):
                                   validation_steps=val_steps_per_epoch,
                                   callbacks=callbacks)
 
-    pprint.pprint(history.history)
     loss = history.history['loss'][-1]
     val_loss = history.history['val_loss'][-1]
     num_epochs = len(history.history['loss'])
