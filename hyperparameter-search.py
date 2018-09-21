@@ -10,14 +10,15 @@ import numpy as np
 from hyperopt import fmin, tpe, rand, hp, STATUS_OK, STATUS_FAIL
 
 # the number of individual models to train using different hyperparameters
-NUM_TRIALS = 20
+NUM_TRIALS = 40
 # the maximum number of epochs per trial
 MAX_EPOCHS_PER_TRIAL = 10
 TRAIN_TEXT_PATH = os.path.join('data', 'tweets-split', 'train-80k.txt')
 VAL_TEXT_PATH = os.path.join('data', 'tweets-split', 'validate-20k.txt')
 # trials will be saved in this directory in separate folders specified by their
 # trial number (e.g. 1/, 2/, 3/, 4/, etc.)
-EXPERIMENT_PATH = os.path.join('checkpoints', '20-trials-10-epochs')
+EXPERIMENT_PATH = os.path.join('checkpoints', 
+                               '{}-trials-{}-epochs'.format(NUM_TRIALS, MAX_EPOCHS_PER_TRIAL))
 
 # each trial will sample values from this search space to train a new model.
 # see hyperopt's documentation if you would like to add different types of 
