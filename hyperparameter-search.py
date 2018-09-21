@@ -13,11 +13,11 @@ from hyperopt import fmin, tpe, rand, hp, STATUS_OK, STATUS_FAIL
 NUM_TRIALS = 20
 # the maximum number of epochs per trial
 MAX_EPOCHS_PER_TRIAL = 10
-TRAIN_TEXT_PATH = 'data/tweets-split-tmp/train.txt'
-VAL_TEXT_PATH = 'data/tweets-split-tmp/validate.txt'
+TRAIN_TEXT_PATH = os.path.join('data', 'tweets-split', 'train-80k.txt')
+VAL_TEXT_PATH = os.path.join('data', 'tweets-split', 'validate-20k.txt')
 # trials will be saved in this directory in separate folders specified by their
 # trial number (e.g. 1/, 2/, 3/, 4/, etc.)
-EXPERIMENT_PATH = 'checkpoints/20-trials-10-epochs'
+EXPERIMENT_PATH = os.path.join('checkpoints', '20-trials-10-epochs')
 
 # each trial will sample values from this search space to train a new model.
 # see hyperopt's documentation if you would like to add different types of 
@@ -47,7 +47,7 @@ def main():
         global TRAIN_TEXT_PATH, VAL_TEXT_PATH, MAX_EPOCHS_PER_TRIAL
         nonlocal trial_num, trials
         params['num_epochs'] = MAX_EPOCHS_PER_TRIAL
-        params['checkpoint_dir'] = '{}/{}/'.format(EXPERIMENT_PATH, trial_num)
+        params['checkpoint_dir'] = os.path.join(EXPERIMENT_PATH, str(trial_num))
         os.makedirs(params['checkpoint_dir'])
 
         then = time.time()

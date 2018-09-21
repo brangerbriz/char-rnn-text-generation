@@ -56,7 +56,7 @@ def parse_args():
         description="train an LSTM text generation model")
     arg_parser.add_argument("--checkpoint-dir", required=True,
                             help="path to save or load model checkpoints (required)")
-    arg_parser.add_argument("--data-dir", default="data/tweets-split",
+    arg_parser.add_argument("--data-dir", default=os.path.join("data", "tweets-split"),
                             help="path to a directory containing a train.txt and validate.txt file (default: %(default)s)")
     arg_parser.add_argument("--restore", action='store_true',
                             help="restore training from a checkpoint.hdf5 file in --checkpoint-dir.")
@@ -96,7 +96,7 @@ def train(args, train_text_path, val_text_path):
     model = None
     # restore the model from checkpoint.hdf5 file in --checkpoint-dir if --restore
     # was specified in args
-    if args['restore']:
+    if 'restore' in args and args['restore']:
         if not os.path.exists(checkpoint_path):
             err = 'cannot restore model from a checkpoint path that doesn\'t exist: {}'.format(
                 checkpoint_path)
@@ -113,12 +113,14 @@ def train(args, train_text_path, val_text_path):
                             num_layers=args['num_layers'],
                             drop_rate=args['drop_rate'])
 
+    
+    learning_rate = args['learning_rate'] if 'learning_rate' in args else None 
     # once we've loaded/built the model, we need to compile it using an 
     # optimizer and a loss. The optimizer can be one of several strings (see get_optimizer())
     # but the loss must be categorical_crossentropy, because our task is 
     # a multi-class classification problem.
     opt = get_optimizer(args['optimizer'],
-                        args['clip_norm'], args['learning_rate'])
+                        args['clip_norm'], learning_rate)
     model.compile(loss="categorical_crossentropy", optimizer=opt)
 
     # Callbacks are hooked functions that are keras will call automagically
@@ -136,7 +138,7 @@ def train(args, train_text_path, val_text_path):
         LambdaCallback(on_epoch_end=lambda epoch, logs: model.reset_states())
     ]
 
-    if not args['restore']:
+    if not 'restore' in args or not args['restore']:
         model.save(checkpoint_path)
 
     # because we may not be able to fit all of our training data into RAM at once
