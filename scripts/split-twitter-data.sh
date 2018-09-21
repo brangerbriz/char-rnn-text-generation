@@ -30,7 +30,7 @@ tail --line +"`expr ${TRAIN_LINES} + 1`" "${TMP_FILE}" | head -n "${VAL_LINES}" 
 tail -n "${TEST_LINES}" "${TMP_FILE}" > "${OUTPUT_FOLDER}/test.txt"
 
 head -n 80000 "${OUTPUT_FOLDER}/train.txt" > "${OUTPUT_FOLDER}/train-80k.txt"
-head -n 20000 "${OUTPUT_FOLDER}/train.txt" > "${OUTPUT_FOLDER}/train-20k.txt"
+head -n 20000 "${OUTPUT_FOLDER}/validate.txt" > "${OUTPUT_FOLDER}/validate-20k.txt"
 
 echo "split ${NUM_LINES} lines into three groups:"
 echo "    wrote ${TRAIN_LINES} (${TRAIN_SPLIT}%) lines to ${OUTPUT_FOLDER}/train.txt"
