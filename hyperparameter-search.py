@@ -44,6 +44,9 @@ SEARCH_ALGORITHM=tpe.suggest
 
 def main():
 
+    # the code for one trial. It's given one sample configuration of
+    # hyperparameters and trains one model, returning a results object.
+    # this function is called by hyperopt's fmin() function.
     def trial(params):
         global TRAIN_TEXT_PATH, VAL_TEXT_PATH, MAX_EPOCHS_PER_TRIAL
         nonlocal trial_num, trials
@@ -51,17 +54,23 @@ def main():
         params['checkpoint_dir'] = os.path.join(EXPERIMENT_PATH, str(trial_num))
         os.makedirs(params['checkpoint_dir'])
 
+        # let's time the model training and print the hyperparameter sample to
+        # the console.
         then = time.time()
         pprint.pprint(params)
 
-        # default values that are returned if an error is raised during the trial
         status = STATUS_OK
         error = None
-        val_loss = 100
-        loss = 100
         train_time = 0
         num_epochs = 0
 
+        # These are the default values that are returned if an error is  raised
+        # during the trial. We set these default "fake", values to be large
+        # so that we can compare them against the true loss using min() below.
+        val_loss = 100
+        loss = 100
+
+        # train the model, catching any errors as a failed experiment
         try:
             model, loss, val_loss, num_epochs = train.train(params, 
                                                             TRAIN_TEXT_PATH, 
@@ -72,7 +81,8 @@ def main():
             print(err)
 
         results = {
-            'loss': val_loss,
+            # use val_loss as the metric hyperopt will attempt to minimize
+            'loss': val_loss, 
             'status': status,
             'train_loss': loss,
             'num_epochs': num_epochs,
@@ -81,7 +91,9 @@ def main():
             'error': error
         }
 
+        # save this trial in a list with the others
         trials.append([params, results])
+        # save the trial results to csv after each trial
         save_hp_checkpoint(EXPERIMENT_PATH, trials)
         trial_num += 1
         return results
@@ -92,37 +104,36 @@ def main():
     trial_num = 1
     trials = []
 
+    # we don't want to accidentally overwrite a past search, so we'll exit
+    # if the EXPERIMENT_PATH already exists. Otherwise, we'll create it and
+    # keep going.
     if os.path.isdir(EXPERIMENT_PATH):
         print('EXPERIMENT_PATH {} already exists, exiting.'.format(EXPERIMENT_PATH))
         exit(1)
     else:
         os.makedirs(EXPERIMENT_PATH)
 
-    # run the hyperparameter search
+    # use hyperopt's fmin() to sample from the hyperparameter space and run our
+    # trials. It will search for a hyperparameter configuration that minimizes
+    # our val_loss.
     fmin(fn=trial,
          space=SEARCH_SPACE,
          algo=SEARCH_ALGORITHM,
          max_evals=NUM_TRIALS)
 
-    # past trials can be loaded like this
-    # past_trials = load_trials(os.path.join(EXPERIMENT_PATH, 'trials.pickle'))
-
-    save_hp_checkpoint(EXPERIMENT_PATH, trials)
-
-
+# save trials to csv, ranked by loss ascending
 def save_hp_checkpoint(experiment_path, trials):
     save_trials(os.path.join(experiment_path, 'trials.pickle'), trials)
     ranked = rank_trials(trials)
     save_trials_as_csv(os.path.join(experiment_path, 'trials.csv'), ranked)
 
-
+# rank trials by loss, ascending
 def rank_trials(trials):
     sorted_indices = np.argsort([result['loss'] for params, result in trials])
     ranked = []
     for index in sorted_indices:
         ranked.append(trials[index])
     return ranked
-
 
 def save_trials_as_csv(filename, ranked_trials):
     with open(filename, 'w') as f:
