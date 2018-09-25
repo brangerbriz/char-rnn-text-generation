@@ -116,32 +116,3 @@ def io_batch_generator(text_path, max_bytes_in_ram=1000000, batch_size=64, seq_l
             del x_batches
             del y_batches
             del encoded
-
-###
-# text generation
-###
-
-def generate_seed(text, seq_lens=(2, 4, 8, 16, 32)):
-    """
-    select subsequence randomly from input text
-    """
-    # randomly choose sequence length
-    seq_len = random.choice(seq_lens)
-    # randomly choose start index
-    start_index = random.randint(0, len(text) - seq_len - 1)
-    seed = text[start_index: start_index + seq_len]
-    return seed
-
-
-def sample_from_probs(probs, top_n=10):
-    """
-    truncated weighted random choice.
-    """
-    # need 64 floating point precision
-    probs = np.array(probs, dtype=np.float64)
-    # set probabilities after top_n to 0
-    probs[np.argsort(probs)[:-top_n]] = 0
-    # renormalise probabilities
-    probs /= np.sum(probs)
-    sampled_index = np.random.choice(len(probs), p=probs)
-    return sampled_index

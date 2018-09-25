@@ -1,4 +1,5 @@
 import os
+import random
 import utils
 import numpy as np
 from argparse import ArgumentParser
@@ -40,7 +41,7 @@ def generate(args):
     if args.seed is None:
         with open(args.text_path) as f:
             text = f.read()
-        seed = utils.generate_seed(text)
+        seed = generate_seed(text)
         print("seed sequence generated from {}".format(args.text_path))
     else:
         seed = args.seed
@@ -71,7 +72,7 @@ def generate_text(model, seed, length=512, top_n=10):
         # input shape: (1, 1)
         probs = model.predict(x)
         # output shape: (1, 1, vocab_size)
-        next_index = utils.sample_from_probs(probs.squeeze(), top_n)
+        next_index = sample_from_probs(probs.squeeze(), top_n)
         # append to sequence
         generated += utils.ID2CHAR[next_index]
 
@@ -92,6 +93,30 @@ def build_inference_model(model, batch_size=1, seq_len=1):
     inference_model.trainable = False
     return inference_model
 
+def generate_seed(text, seq_lens=(2, 4, 8, 16, 32)):
+    """
+    select subsequence randomly from input text
+    """
+    # randomly choose sequence length
+    seq_len = random.choice(seq_lens)
+    # randomly choose start index
+    start_index = random.randint(0, len(text) - seq_len - 1)
+    seed = text[start_index: start_index + seq_len]
+    return seed
+
+
+def sample_from_probs(probs, top_n=10):
+    """
+    truncated weighted random choice.
+    """
+    # need 64 floating point precision
+    probs = np.array(probs, dtype=np.float64)
+    # set probabilities after top_n to 0
+    probs[np.argsort(probs)[:-top_n]] = 0
+    # renormalise probabilities
+    probs /= np.sum(probs)
+    sampled_index = np.random.choice(len(probs), p=probs)
+    return sampled_index
 
 if __name__ == '__main__':
     main()
