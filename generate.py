@@ -1,10 +1,10 @@
 import os
+import sys
 import random
 import utils
 import numpy as np
 from argparse import ArgumentParser
 from keras.models import load_model, Sequential
-
 
 def main():
     dsc = "generate synthetic text from a pre-trained LSTM text generation model"
@@ -23,7 +23,8 @@ def main():
                             help="number of top choices to sample (default: %(default)s)")
 
     args = arg_parser.parse_args()
-    generate(args)
+    text = generate(args)
+    print(text)
 
 
 def generate(args):
@@ -36,13 +37,13 @@ def generate(args):
     # build inference model and transfer weights
     inference_model = build_inference_model(model)
     inference_model.set_weights(model.get_weights())
-    print("model loaded: {}.".format(args.checkpoint_path))
+    print("model loaded: {}.".format(args.checkpoint_path), file=sys.stderr)
     # create seed if not specified
     if args.seed is None:
         with open(args.text_path) as f:
             text = f.read()
         seed = generate_seed(text)
-        print("seed sequence generated from {}".format(args.text_path))
+        print("seed sequence generated from {}".format(args.text_path), file=sys.stderr)
     else:
         seed = args.seed
 
@@ -54,8 +55,8 @@ def generate_text(model, seed, length=512, top_n=10):
     generates text of specified length from trained model
     with given seed character sequence.
     """
-    print("generating {} characters from top {} choices.".format(length, top_n))
-    print('generating with seed: "{}".'.format(seed))
+    print("generating {} characters from top {} choices.".format(length, top_n), file=sys.stderr)
+    print('generating with seed: "{}".'.format(seed), file=sys.stderr)
     generated = seed
     encoded = utils.encode_text(seed)
     model.reset_states()
@@ -76,7 +77,6 @@ def generate_text(model, seed, length=512, top_n=10):
         # append to sequence
         generated += utils.ID2CHAR[next_index]
 
-    print("generated text: \n{}\n".format(generated))
     return generated
 
 
@@ -85,7 +85,7 @@ def build_inference_model(model, batch_size=1, seq_len=1):
     build inference model from model config
     input shape modified to (1, 1)
     """
-    print("building inference model.")
+    print("building inference model.", file=sys.stderr)
     config = model.get_config()
     # edit batch_size and seq_len
     config[0]["config"]["batch_input_shape"] = (batch_size, seq_len)
